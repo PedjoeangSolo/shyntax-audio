@@ -44,13 +44,9 @@ class AudioVisualizerEngine(
     }
 
     private fun publish(waveBytes: ByteArray?, fftBytes: ByteArray?) {
-        val now = SystemClock.elapsedRealtime()
-        val minInterval = 1000L / targetFrameRate
-        if (now - lastFrameAt < minInterval) return
-        lastFrameAt = now
-
         if (waveBytes != null) latestWave = waveBytes.map { ((it.toInt() and 0xff) - 128) / 128f }
-        if (fftBytes != null) latestFft = fftBytes.let { bytes ->
+        if (fftBytes == null) return
+        latestFft = fftBytes.let { bytes ->
             val bins = ArrayList<Float>(bytes.size / 2)
             var i = 2
             while (i + 1 < bytes.size) {
@@ -62,6 +58,10 @@ class AudioVisualizerEngine(
             }
             bins
         }
+        val now = SystemClock.elapsedRealtime()
+        val minInterval = 1000L / targetFrameRate
+        if (now - lastFrameAt < minInterval) return
+        lastFrameAt = now
         mainHandler.post {
             onFrame(latestWave, latestFft)
         }
