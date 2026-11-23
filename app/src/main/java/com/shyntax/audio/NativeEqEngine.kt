@@ -65,6 +65,11 @@ class NativeEqEngine(audioSessionId: Int) {
         return 0f
     }
 
+    fun applyTreble(gainDb: Int) {
+        val curve = thirtyOne.map { hz -> if (hz >= 2000f) gainDb.toFloat() * ((ln(hz.toDouble() / 2000.0) / ln(10.0)).coerceIn(0.0, 1.0)).toFloat() else 0f }
+        applyCurve(thirtyOne, curve)
+    }
+
     fun release() {
         runCatching { effect.release() }
     }
