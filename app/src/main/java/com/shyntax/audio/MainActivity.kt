@@ -14,6 +14,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -304,13 +306,22 @@ private fun AudioHome(
             )
         )
         Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Lagu", "Album", "Artis").forEach {
-                FilterChip(selected = tab == it, onClick = { tab = it; groupFilter = null; favoritesOnly = false }, label = { Text(it) })
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf("Lagu", "Album", "Artis").forEach {
+                    FilterChip(selected = tab == it, onClick = { tab = it; groupFilter = null; favoritesOnly = false }, label = { Text(it) })
+                }
+                FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = !favoritesOnly; groupFilter = null },
+                    label = { Icon(Icons.Default.Favorite, null, modifier = Modifier.size(15.dp)); Spacer(Modifier.width(4.dp)); Text("Favorit") })
             }
-            FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = !favoritesOnly; groupFilter = null },
-                label = { Icon(Icons.Default.Favorite, null, modifier = Modifier.size(15.dp)); Spacer(Modifier.width(4.dp)); Text("Favorit") })
-            Spacer(Modifier.weight(1f))
             Box {
                 IconButton(onClick = { sortMenu = true }) { Icon(Icons.Default.Sort, "Urutkan", tint = Ice) }
                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
@@ -319,7 +330,9 @@ private fun AudioHome(
                     }
                 }
             }
-            IconButton(onClick = { onShowEqualizer(true) }) { Icon(Icons.Default.Tune, "Equalizer", tint = Ice) }
+            IconButton(onClick = { onShowEqualizer(true) }) {
+                Icon(Icons.Default.Tune, "Pengaturan suara / Equalizer", tint = Ice)
+            }
             IconButton(onClick = onImport) { Icon(Icons.Default.Add, "Tambah lagu", tint = Ice) }
         }
         Text(
