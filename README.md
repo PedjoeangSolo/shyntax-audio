@@ -1,43 +1,44 @@
-# SHYNTAX AUDIO — v0.7.1
+# SHYNTAX AUDIO — v0.8.0
 
 Native Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
 ## Implemented
-- Import multiple local audio files with Android Storage Access Framework.
+- Import local audio files with Android Storage Access Framework.
 - Playback through Media3 ExoPlayer and MediaSessionService.
 - Play/pause, next/previous and seek controls.
-- Persistent imported-library list using saved SAF URI permissions.
-- Read embedded title, artist, album and duration metadata when exposed by the file.
-- Library views for Songs, Albums and Artists; search, sort and favorites.
-- Native playback-session graphic equalizer with 10-band and 31-band control curves.
-- Five-band parametric curve controls mapped onto the equalizer bands exposed by Android audio effects.
-- EQ presets, bypass and saved settings.
-- Session-based DSP controls: Bass Boost, treble shaping, Virtualizer width, Loudness Enhancer and preset reverb where supported.
-- Live visualizer using waveform and FFT data from the active playback audio session.
-- Five visualizer modes: Waveform, Spectrum Bars, Circular Spectrum, Oscilloscope and Particles.
-- Visualizer performance controls: 15/30/60 FPS and FFT display quality options.
-- Automatic embedded lyrics reading for MP3 ID3v2 USLT/TXXX and FLAC Vorbis Comment LYRICS tags.\n- LRC synchronized lyrics and plain TXT lyrics import, saved per track; a manual import overrides embedded lyrics for that track.
-- Current lyric line highlighting based on playback position.
-- Playback speed / tempo control from 0.5× to 2.0×.
-- Pitch shifting from -12 to +12 semitones, independently adjustable from playback speed.
-- Playback speed and pitch preferences saved locally and restored on app start.
+- Persistent library, Songs/Albums/Artists, search, sorting and favorites.
+- Native playback-session graphic equalizer and parametric controls mapped to Android audio effects.
+- Bass Boost, treble shaping, stereo width, loudness and preset reverb where supported.
+- Live visualizer: Waveform, Spectrum, Circular, Oscilloscope and Particles.
+- Visualizer performance controls: 15/30/60 FPS and quality settings.
+- Lyrics: embedded MP3 ID3v2 USLT/TXXX and FLAC Vorbis Comment LYRICS, plus manual LRC/TXT import.
+- Playback speed 0.5×–2.0× and pitch shift ±12 semitones.
+- Hi-Res & Audio Output panel:
+  - Reads audio MIME/codec, sample rate, channel count and bitrate when Android MediaExtractor exposes them.
+  - Shows PCM encoding only when exposed by the decoder.
+  - Detects connected Android output endpoints, including USB audio devices/headsets, wired, Bluetooth, HDMI and built-in speaker.
+  - Refreshes the current output endpoint list on demand.
 - Dark + Ice Blue interface.
 
-## Device test report — v0.6.0
-User-tested on TECNO Pova 7 4G / Android 16. All reported visualizer checks passed, including all five modes, FPS/quality settings, pause/start, track changes, background playback and stability.
+## v0.8.0 scope and supported-format expectations
+The player uses Media3/Android platform extractors. Common formats supported by the standard Android/Media3 path include MP3, AAC (including AAC in M4A/MP4), WAV, FLAC, Ogg Vorbis and Opus, subject to Android codec/provider support. Container and codec support can vary by Android build. APE and DSD/DSF/DFF are not added by this milestone.
 
-## v0.7.0 testing status
-The lyrics, tempo and pitch controls have been added to the source. The GitHub Actions build and on-device testing are still required before these new features can be considered verified.
+## Important audio limitations
+- Metadata shown in the Hi-Res panel comes from Android's extractor and describes the source track when reported. It is not a measurement of the final DAC output.
+- USB device detection confirms that Android exposes a USB audio output endpoint; it does not prove that playback is routed to it at a particular sample rate.
+- This version does not provide exclusive USB DAC access, manual DAC routing, output sample-rate forcing, native DSD, or verified bit-perfect playback.
+- Android may resample audio through the system mixer. DSP, EQ, tempo and pitch processing also alter the signal; bit-perfect output must not be claimed while those effects are active.
+- Actual Hi-Res playback depends on source file, decoder, Android audio path, device hardware and output DAC. Validate using the target device and DAC.
+- PCM bit depth is often not exposed for compressed source formats; the app displays "not reported" rather than guessing.
+- The Android Visualizer and Equalizer are device/ROM dependent. The 10/31-band UI maps to bands exposed by Android and is not a 31-independent-biquad software engine.
+- Lyrics auto-read remains limited to MP3 ID3v2 USLT/TXXX and FLAC Vorbis Comment LYRICS; manual LRC/TXT import remains available.
+
+## Device testing
+- v0.6.0 visualizer: user-tested on TECNO Pova 7 4G / Android 16; all reported checks passed.
+- v0.7.1 lyrics/tempo/pitch and embedded lyrics: user confirmed all functions worked.
+- v0.8.0 Hi-Res metadata and USB output detection: build and real-device testing pending.
 
 ## Build
-Open this folder in Android Studio (JDK 17, Android SDK 35), or push it to GitHub and run **Actions → Build SHYNTAX AUDIO APK**.
+Run **Actions → Build SHYNTAX AUDIO APK** or use the GitHub Actions workflow after pushing to `main`. Requires JDK 17 and Android SDK 35.
 
-## Notes and limitations
-This is an evolving player foundation, not yet the complete Hi-Res player. LRC timestamps are used for line highlighting; plain TXT files are displayed without time synchronization. Lyrics are imported for the currently selected track and stored locally against that track's URI. Automatic embedded-tag support is currently limited to MP3 ID3v2 USLT/TXXX and FLAC Vorbis Comment LYRICS; other formats/tag variants may need additional parsing. OGG, M4A/ALAC, APE and synchronized ID3 SYLT are not yet supported by this embedded reader. Online lyrics fetching and an in-app lyric timing editor are not included yet.
-
-Tempo and pitch use Media3 playback parameters. The effective time-stretch/pitch-shift quality depends on Media3's processing path, codec and device. This is not a promise of artifact-free studio-grade processing; test with different tracks and listen for artifacts. Speed/pitch processing may affect bit-perfect output, so bit-perfect playback must not be claimed while these processing controls are active.
-
-The Android Visualizer and Android Equalizer effects are device/ROM dependent. EQ curves are mapped onto the bands exposed by Android and are not a 31-independent-biquad software engine. Actual codec, sample-rate, USB DAC and bit-perfect capabilities depend on Android, decoder and output hardware and must be tested on the target device.
-
-## Next milestone — v0.8.0
-Focus: decoder/format expansion, Hi-Res playback path investigation, output-device information and USB DAC compatibility checks. Hardware-dependent features will be reported only after real-device testing.
+Repository: https://github.com/PedjoeangSolo/shyntax-audio
