@@ -157,7 +157,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun setupEqualizer(sessionId: Int) {\n        runCatching {\n            eqEngine?.release()\n            eqEngine = NativeEqEngine(sessionId)\n            val prefs = getSharedPreferences("shyntax_eq", MODE_PRIVATE)\n            eqEnabled = prefs.getBoolean("enabled", false)\n            eqBandCount = prefs.getInt("band_count", 10).coerceIn(10, 31)\n            val saved = prefs.getString("levels", null)?.split(",")?.mapNotNull { it.toFloatOrNull() }\n            if (saved != null && saved.size == 31) saved.forEachIndexed { i, v -> eqLevels[i] = v.coerceIn(-12f, 12f) }\n            eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)\n            eqEngine?.setEnabled(eqEnabled)\n        }.onFailure { eqEnabled = false }\n    }\n\n    private fun saveEqSettings() {\n        getSharedPreferences("shyntax_eq", MODE_PRIVATE).edit()\n            .putBoolean("enabled", eqEnabled)\n            .putInt("band_count", eqBandCount)\n            .putString("levels", eqLevels.joinToString(","))\n            .apply()\n    }\n\n    private fun readTrack(uri: Uri): Track {
+    private fun setupEqualizer(sessionId: Int) {
+        runCatching {
+            eqEngine?.release()
+            eqEngine = NativeEqEngine(sessionId)
+            val prefs = getSharedPreferences("shyntax_eq", MODE_PRIVATE)
+            eqEnabled = prefs.getBoolean("enabled", false)
+            eqBandCount = prefs.getInt("band_count", 10).coerceIn(10, 31)
+            val saved = prefs.getString("levels", null)?.split(",")?.mapNotNull { it.toFloatOrNull() }
+            if (saved != null && saved.size == 31) saved.forEachIndexed { i, v -> eqLevels[i] = v.coerceIn(-12f, 12f) }
+            eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
+            eqEngine?.setEnabled(eqEnabled)
+        }.onFailure { eqEnabled = false }
+    }
+
+    private fun saveEqSettings() {
+        getSharedPreferences("shyntax_eq", MODE_PRIVATE).edit()
+            .putBoolean("enabled", eqEnabled)
+            .putInt("band_count", eqBandCount)
+            .putString("levels", eqLevels.joinToString(","))
+            .apply()
+    }
+
+    private fun readTrack(uri: Uri): Track {
         val fileName = runCatching {
             contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
                 ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
@@ -241,7 +263,15 @@ private fun AudioHome(
         }
     }
 
-    if (showEqualizer) {\n        EqualizerDialog(\n            levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,\n            onDismiss = { onShowEqualizer(false) }, onEnabledChange = onEqToggle,\n            onBandCountChange = onEqBandCount, onBandChange = onEqChange,\n            onPreset = onEqPreset, onParametricApply = onParametricApply\n        )\n    }\n    Column(Modifier.fillMaxSize().background(Background).padding(18.dp)) {
+    if (showEqualizer) {
+        EqualizerDialog(
+            levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,
+            onDismiss = { onShowEqualizer(false) }, onEnabledChange = onEqToggle,
+            onBandCountChange = onEqBandCount, onBandChange = onEqChange,
+            onPreset = onEqPreset, onParametricApply = onParametricApply
+        )
+    }
+    Column(Modifier.fillMaxSize().background(Background).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
                 Text("SHYNTAX", color = Ice, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
@@ -279,7 +309,8 @@ private fun AudioHome(
                     }
                 }
             }
-            IconButton(onClick = { onShowEqualizer(true) }) { Icon(Icons.Default.Tune, "Equalizer", tint = Ice) }\n            IconButton(onClick = onImport) { Icon(Icons.Default.Add, "Tambah lagu", tint = Ice) }
+            IconButton(onClick = { onShowEqualizer(true) }) { Icon(Icons.Default.Tune, "Equalizer", tint = Ice) }
+            IconButton(onClick = onImport) { Icon(Icons.Default.Add, "Tambah lagu", tint = Ice) }
         }
         Text(
             when {

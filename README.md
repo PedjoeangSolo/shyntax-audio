@@ -11,7 +11,10 @@ Native Android music player built with Kotlin, Jetpack Compose and AndroidX Medi
 - Library views for Songs, Albums and Artists.
 - Search across title, artist and album.
 - Sort by title, artist or album.
-- Mark and retain favorite tracks.\n- Native playback-session graphic equalizer with 10-band and 31-band control curves.\n- Five-band parametric curve controls for frequency, gain and Q, mapped onto the equalizer bands exposed by Android audio effects.\n- EQ presets, bypass and saved settings.
+- Mark and retain favorite tracks.
+- Native playback-session graphic equalizer with 10-band and 31-band control curves.
+- Five-band parametric curve controls for frequency, gain and Q, mapped onto the equalizer bands exposed by Android audio effects.
+- EQ presets, bypass and saved settings.
 - Dark + Ice Blue interface.
 
 ## Build
