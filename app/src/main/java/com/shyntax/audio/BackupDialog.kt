@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import androidx.compose.ui.unit.dp
 
 object AppBackupManager {
     private const val ENTRY = "shyntax-backup.json"
