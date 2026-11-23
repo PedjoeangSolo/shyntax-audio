@@ -157,6 +157,7 @@ class MainActivity : ComponentActivity() {
                     onEqChange = { index, value ->
                         if (index in eqLevels.indices) eqLevels[index] = value
                         eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
+                        eqEngine?.applyTreble(dspTreble)
                         saveEqSettings()
                     },
                     onEqPreset = { preset ->
@@ -174,6 +175,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onParametricApply = { frequencies, gains, qs ->
                         eqEngine?.applyParametric(frequencies, gains, qs)
+                        eqEngine?.applyTreble(dspTreble)
                         eqEnabled = true
                         eqEngine?.setEnabled(true)
                     }
@@ -195,13 +197,13 @@ class MainActivity : ComponentActivity() {
             dspLoudness = dspPrefs.getInt("loudness", 0).coerceIn(0, 1000)
             dspReverb = dspPrefs.getString("reverb", "Off") ?: "Off"
             dspEngine?.apply(dspBass, dspWidth, dspLoudness, dspReverb)
-            eqEngine?.applyTreble(dspTreble)
             val prefs = getSharedPreferences("shyntax_eq", MODE_PRIVATE)
             eqEnabled = prefs.getBoolean("enabled", false)
             eqBandCount = prefs.getInt("band_count", 10).coerceIn(10, 31)
             val saved = prefs.getString("levels", null)?.split(",")?.mapNotNull { it.toFloatOrNull() }
             if (saved != null && saved.size == 31) saved.forEachIndexed { i, v -> eqLevels[i] = v.coerceIn(-12f, 12f) }
             eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
+            eqEngine?.applyTreble(dspTreble)
             eqEngine?.setEnabled(eqEnabled)
         }.onFailure { eqEnabled = false }
     }
