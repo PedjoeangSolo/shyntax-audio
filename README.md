@@ -1,4 +1,4 @@
-# SHYNTAX AUDIO — v0.6.0
+# SHYNTAX AUDIO — v0.7.0
 
 Native Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
@@ -13,28 +13,31 @@ Native Android music player built with Kotlin, Jetpack Compose and AndroidX Medi
 - Five-band parametric curve controls mapped onto the equalizer bands exposed by Android audio effects.
 - EQ presets, bypass and saved settings.
 - Session-based DSP controls: Bass Boost, treble shaping, Virtualizer width, Loudness Enhancer and preset reverb where supported.
-- Live visualizer reads waveform and FFT data from the active playback audio session using Android's Visualizer effect.
-- Visualizer modes: Waveform, Spectrum Bars, Circular Spectrum, Oscilloscope and Particles.
+- Live visualizer using waveform and FFT data from the active playback audio session.
+- Five visualizer modes: Waveform, Spectrum Bars, Circular Spectrum, Oscilloscope and Particles.
 - Visualizer performance controls: 15/30/60 FPS and FFT display quality options.
-- Visualizer mode and performance preferences persist locally.
+- LRC synchronized lyrics and plain TXT lyrics import, saved per track.
+- Current lyric line highlighting based on playback position.
+- Playback speed / tempo control from 0.5× to 2.0×.
+- Pitch shifting from -12 to +12 semitones, independently adjustable from playback speed.
+- Playback speed and pitch preferences saved locally and restored on app start.
 - Dark + Ice Blue interface.
 
 ## Device test report — v0.6.0
-User-tested on TECNO Pova 7 4G / Android 16. All reported checks passed:
-- Waveform, Spectrum, Circular, Oscilloscope and Particles.
-- FPS 15/30/60 and quality 32/64/128.
-- Pause/Start, track changes and background playback.
-- App stability during the reported test session.
+User-tested on TECNO Pova 7 4G / Android 16. All reported visualizer checks passed, including all five modes, FPS/quality settings, pause/start, track changes, background playback and stability.
 
-This confirms the reported on-device behavior for this device and test session; it does not establish compatibility with every Android device or ROM.
+## v0.7.0 testing status
+The lyrics, tempo and pitch controls have been added to the source. The GitHub Actions build and on-device testing are still required before these new features can be considered verified.
 
 ## Build
 Open this folder in Android Studio (JDK 17, Android SDK 35), or push it to GitHub and run **Actions → Build SHYNTAX AUDIO APK**.
 
 ## Notes and limitations
-This is an early player foundation, not yet the complete Hi-Res player. The Android Visualizer effect is device/ROM dependent and requires the user to grant the RECORD_AUDIO runtime permission before capture. It captures the playback session's waveform/FFT; if the platform denies or does not expose the effect, the app reports the failure instead of faking audio data. Lower FPS and fewer FFT bins reduce UI work. A custom JavaScript visualizer editor, lyrics, tempo/pitch, USB DAC controls, advanced decoders and backup/restore are not part of this 0.6.0 build yet.
+This is an evolving player foundation, not yet the complete Hi-Res player. LRC timestamps are used for line highlighting; plain TXT files are displayed without time synchronization. Lyrics are imported for the currently selected track and stored locally against that track's URI. Online lyrics fetching and an in-app lyric timing editor are not included yet.
 
-The EQ uses Android Equalizer on the active playback audio session; available hardware band count and gain range vary by device. 10/31-band and parametric curves are interpolated onto the bands provided by Android, so this is not a software 31-independent-biquad engine and Q precision is constrained by the platform effect. Actual codec, sample-rate and bit-perfect capabilities depend on Android, decoder and output hardware and must be tested on the target device.
+Tempo and pitch use Media3 playback parameters. The effective time-stretch/pitch-shift quality depends on Media3's processing path, codec and device. This is not a promise of artifact-free studio-grade processing; test with different tracks and listen for artifacts. Speed/pitch processing may affect bit-perfect output, so bit-perfect playback must not be claimed while these processing controls are active.
 
-## Next milestone — v0.7.0
-Planned focus: synchronized lyrics (LRC/TXT import and display), playback speed/tempo controls, and pitch controls. These features will be implemented and tested separately; time-stretch quality and decoder/device compatibility will be stated accurately.
+The Android Visualizer and Android Equalizer effects are device/ROM dependent. EQ curves are mapped onto the bands exposed by Android and are not a 31-independent-biquad software engine. Actual codec, sample-rate, USB DAC and bit-perfect capabilities depend on Android, decoder and output hardware and must be tested on the target device.
+
+## Next milestone — v0.8.0
+Focus: decoder/format expansion, Hi-Res playback path investigation, output-device information and USB DAC compatibility checks. Hardware-dependent features will be reported only after real-device testing.
