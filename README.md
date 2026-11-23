@@ -1,4 +1,4 @@
-# SHYNTAX AUDIO — v0.4.0
+# SHYNTAX AUDIO — v0.5.0
 
 Native Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
@@ -15,6 +15,8 @@ Native Android music player built with Kotlin, Jetpack Compose and AndroidX Medi
 - Native playback-session graphic equalizer with 10-band and 31-band control curves.
 - Five-band parametric curve controls for frequency, gain and Q, mapped onto the equalizer bands exposed by Android audio effects.
 - EQ presets, bypass and saved settings.
+- Session-based DSP controls: Bass Boost, treble shaping through the native EQ curve, Virtualizer width, Loudness Enhancer and preset reverb where supported.
+- DSP values persist locally and are re-applied when the playback audio session is initialized.
 - Dark + Ice Blue interface.
 
 ## Build
