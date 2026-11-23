@@ -57,6 +57,11 @@ class MainActivity : ComponentActivity() {
     private var playing by mutableStateOf(false)
     private var position by mutableLongStateOf(0L)
     private var duration by mutableLongStateOf(0L)
+    private var eqEngine: NativeEqEngine? = null
+    private val eqLevels = mutableStateListOf<Float>().apply { repeat(31) { add(0f) } }
+    private var eqEnabled by mutableStateOf(false)
+    private var eqBandCount by mutableIntStateOf(10)
+    private var showEqualizer by mutableStateOf(false)
 
     private val picker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
@@ -85,6 +90,8 @@ class MainActivity : ComponentActivity() {
                     duration = controller?.duration?.takeIf { it > 0 } ?: 0L
                 }
             })
+            val sessionId = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
+            if (sessionId > 0) setupEqualizer(sessionId)
             if (tracks.isNotEmpty()) playTrack(0)
         }, MoreExecutors.directExecutor())
 
@@ -117,13 +124,40 @@ class MainActivity : ComponentActivity() {
                     onPlayPause = { controller?.let { if (it.isPlaying) it.pause() else it.play() } },
                     onNext = { controller?.seekToNextMediaItem() },
                     onPrevious = { controller?.seekToPreviousMediaItem() },
-                    onSeek = { controller?.seekTo(it) }
+                    onSeek = { controller?.seekTo(it) },
+                    eqLevels = eqLevels.toList(), eqEnabled = eqEnabled, eqBandCount = eqBandCount,
+                    showEqualizer = showEqualizer, onShowEqualizer = { showEqualizer = it },
+                    onEqToggle = { enabled -> eqEnabled = enabled; eqEngine?.setEnabled(enabled) },
+                    onEqBandCount = { count -> eqBandCount = count },
+                    onEqChange = { index, value ->
+                        if (index in eqLevels.indices) eqLevels[index] = value
+                        eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
+                        saveEqSettings()
+                    },
+                    onEqPreset = { preset ->
+                        val values = when (preset) {
+                            "Bass" -> listOf(6f,5f,4f,2f,0f,-1f,-2f,-2f,-1f,0f)
+                            "Treble" -> listOf(-2f,-1f,0f,0f,0f,1f,3f,4f,5f,5f)
+                            "Vocal" -> listOf(-2f,-1f,0f,2f,3f,3f,2f,1f,0f,-1f)
+                            "Rock" -> listOf(4f,3f,1f,-1f,-2f,1f,3f,4f,4f,3f)
+                            "Jazz" -> listOf(3f,2f,1f,2f,-1f,-1f,0f,1f,2f,3f)
+                            else -> List(10) { 0f }
+                        }
+                        for (i in 0 until 31) eqLevels[i] = if (eqBandCount == 10) values[(i * 9 / 30).coerceIn(0,9)] else values[(i * 9 / 30).coerceIn(0,9)]
+                        eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
+                        saveEqSettings()
+                    },
+                    onParametricApply = { frequencies, gains, qs ->
+                        eqEngine?.applyParametric(frequencies, gains, qs)
+                        eqEnabled = true
+                        eqEngine?.setEnabled(true)
+                    }
                 )
             }
         }
     }
 
-    private fun readTrack(uri: Uri): Track {
+    private fun setupEqualizer(sessionId: Int) {\n        runCatching {\n            eqEngine?.release()\n            eqEngine = NativeEqEngine(sessionId)\n            val prefs = getSharedPreferences("shyntax_eq", MODE_PRIVATE)\n            eqEnabled = prefs.getBoolean("enabled", false)\n            eqBandCount = prefs.getInt("band_count", 10).coerceIn(10, 31)\n            val saved = prefs.getString("levels", null)?.split(",")?.mapNotNull { it.toFloatOrNull() }\n            if (saved != null && saved.size == 31) saved.forEachIndexed { i, v -> eqLevels[i] = v.coerceIn(-12f, 12f) }\n            eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)\n            eqEngine?.setEnabled(eqEnabled)\n        }.onFailure { eqEnabled = false }\n    }\n\n    private fun saveEqSettings() {\n        getSharedPreferences("shyntax_eq", MODE_PRIVATE).edit()\n            .putBoolean("enabled", eqEnabled)\n            .putInt("band_count", eqBandCount)\n            .putString("levels", eqLevels.joinToString(","))\n            .apply()\n    }\n\n    private fun readTrack(uri: Uri): Track {
         val fileName = runCatching {
             contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
                 ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
@@ -207,7 +241,7 @@ private fun AudioHome(
         }
     }
 
-    Column(Modifier.fillMaxSize().background(Background).padding(18.dp)) {
+    if (showEqualizer) {\n        EqualizerDialog(\n            levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,\n            onDismiss = { onShowEqualizer(false) }, onEnabledChange = onEqToggle,\n            onBandCountChange = onEqBandCount, onBandChange = onEqChange,\n            onPreset = onEqPreset, onParametricApply = onParametricApply\n        )\n    }\n    Column(Modifier.fillMaxSize().background(Background).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
                 Text("SHYNTAX", color = Ice, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
@@ -245,7 +279,7 @@ private fun AudioHome(
                     }
                 }
             }
-            IconButton(onClick = onImport) { Icon(Icons.Default.Add, "Tambah lagu", tint = Ice) }
+            IconButton(onClick = { onShowEqualizer(true) }) { Icon(Icons.Default.Tune, "Equalizer", tint = Ice) }\n            IconButton(onClick = onImport) { Icon(Icons.Default.Add, "Tambah lagu", tint = Ice) }
         }
         Text(
             when {
