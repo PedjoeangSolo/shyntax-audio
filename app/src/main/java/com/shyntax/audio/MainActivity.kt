@@ -60,6 +60,13 @@ class MainActivity : ComponentActivity() {
     private var position by mutableLongStateOf(0L)
     private var duration by mutableLongStateOf(0L)
     private var eqEngine: NativeEqEngine? = null
+    private var dspEngine: NativeDspEngine? = null
+    private var showDsp by mutableStateOf(false)
+    private var dspBass by mutableIntStateOf(0)
+    private var dspTreble by mutableIntStateOf(0)
+    private var dspWidth by mutableIntStateOf(0)
+    private var dspLoudness by mutableIntStateOf(0)
+    private var dspReverb by mutableStateOf("Off")
     private val eqLevels = mutableStateListOf<Float>().apply { repeat(31) { add(0f) } }
     private var eqEnabled by mutableStateOf(false)
     private var eqBandCount by mutableIntStateOf(10)
@@ -135,6 +142,16 @@ class MainActivity : ComponentActivity() {
                     onSeek = { controller?.seekTo(it) },
                     eqLevels = eqLevels.toList(), eqEnabled = eqEnabled, eqBandCount = eqBandCount,
                     showEqualizer = showEqualizer, onShowEqualizer = { showEqualizer = it },
+                    showDsp = showDsp, onShowDsp = { showDsp = it },
+                    dspBass = dspBass, dspTreble = dspTreble, dspWidth = dspWidth, dspLoudness = dspLoudness, dspReverb = dspReverb,
+                    onDspChange = { bass, treble, width, loudness, reverb ->
+                        dspBass = bass; dspTreble = treble; dspWidth = width; dspLoudness = loudness; dspReverb = reverb
+                        dspEngine?.apply(bass, width, loudness, reverb)
+                        eqEngine?.applyTreble(treble)
+                        getSharedPreferences("shyntax_dsp", MODE_PRIVATE).edit()
+                            .putInt("bass", bass).putInt("treble", treble).putInt("width", width)
+                            .putInt("loudness", loudness).putString("reverb", reverb).apply()
+                    },
                     onEqToggle = { enabled -> eqEnabled = enabled; eqEngine?.setEnabled(enabled) },
                     onEqBandCount = { count -> eqBandCount = count },
                     onEqChange = { index, value ->
@@ -169,6 +186,16 @@ class MainActivity : ComponentActivity() {
         runCatching {
             eqEngine?.release()
             eqEngine = NativeEqEngine(sessionId)
+            dspEngine?.release()
+            dspEngine = NativeDspEngine(sessionId)
+            val dspPrefs = getSharedPreferences("shyntax_dsp", MODE_PRIVATE)
+            dspBass = dspPrefs.getInt("bass", 0).coerceIn(0, 100)
+            dspTreble = dspPrefs.getInt("treble", 0).coerceIn(-12, 12)
+            dspWidth = dspPrefs.getInt("width", 0).coerceIn(0, 100)
+            dspLoudness = dspPrefs.getInt("loudness", 0).coerceIn(0, 1000)
+            dspReverb = dspPrefs.getString("reverb", "Off") ?: "Off"
+            dspEngine?.apply(dspBass, dspWidth, dspLoudness, dspReverb)
+            eqEngine?.applyTreble(dspTreble)
             val prefs = getSharedPreferences("shyntax_eq", MODE_PRIVATE)
             eqEnabled = prefs.getBoolean("enabled", false)
             eqBandCount = prefs.getInt("band_count", 10).coerceIn(10, 31)
@@ -239,6 +266,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        eqEngine?.release()
+        dspEngine?.release()
         controller?.release()
         super.onDestroy()
     }
@@ -250,6 +279,9 @@ private fun AudioHome(
     onImport: () -> Unit, onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
     eqLevels: List<Float>, eqEnabled: Boolean, eqBandCount: Int, showEqualizer: Boolean,
+    showDsp: Boolean, onShowDsp: (Boolean) -> Unit,
+    dspBass: Int, dspTreble: Int, dspWidth: Int, dspLoudness: Int, dspReverb: String,
+    onDspChange: (Int, Int, Int, Int, String) -> Unit,
     onShowEqualizer: (Boolean) -> Unit, onEqToggle: (Boolean) -> Unit, onEqBandCount: (Int) -> Unit,
     onEqChange: (Int, Float) -> Unit, onEqPreset: (String) -> Unit,
     onParametricApply: (List<Float>, List<Float>, List<Float>) -> Unit
@@ -275,6 +307,10 @@ private fun AudioHome(
         }
     }
 
+    if (showDsp) {
+        DspDialog(bass = dspBass, treble = dspTreble, width = dspWidth, loudness = dspLoudness, reverb = dspReverb,
+            onChange = onDspChange, onDismiss = { onShowDsp(false) })
+    }
     if (showEqualizer) {
         EqualizerDialog(
             levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,
@@ -290,7 +326,7 @@ private fun AudioHome(
                 Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
             }
             Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-                Text("0.4.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                Text("0.5.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -331,7 +367,10 @@ private fun AudioHome(
                 }
             }
             IconButton(onClick = { onShowEqualizer(true) }) {
-                Icon(Icons.Default.Tune, "Pengaturan suara / Equalizer", tint = Ice)
+                Icon(Icons.Default.Tune, "Equalizer", tint = Ice)
+            }
+            IconButton(onClick = { onShowDsp(true) }) {
+                Icon(Icons.Default.GraphicEq, "Advanced Audio DSP", tint = Ice)
             }
             IconButton(onClick = onImport) { Icon(Icons.Default.Add, "Tambah lagu", tint = Ice) }
         }
