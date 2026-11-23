@@ -130,6 +130,7 @@ class MainActivity : ComponentActivity() {
         val future = MediaController.Builder(this, token).buildAsync()
         future.addListener({
             controller = runCatching { future.get() }.getOrNull()
+            applyPlaybackParameters()
             controller?.addListener(object : androidx.media3.common.Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     playing = isPlaying
@@ -455,7 +456,7 @@ private fun AudioHome(
                 Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
             }
             Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-                Text("0.6.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                Text("0.7.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))
