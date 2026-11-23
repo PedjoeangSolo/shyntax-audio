@@ -5,6 +5,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import android.media.MediaMetadataRetriever
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -94,6 +97,9 @@ class MainActivity : ComponentActivity() {
     private var eqEnabled by mutableStateOf(false)
     private var eqBandCount by mutableIntStateOf(10)
     private var showEqualizer by mutableStateOf(false)
+    private var showHiResDialog by mutableStateOf(false)
+    private var currentAudioInfo by mutableStateOf(AudioFileInfo())
+    private var audioOutputs by mutableStateOf<List<AudioOutputInfo>>(emptyList())
 
     private val lyricsPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && currentTrackIndex in tracks.indices) {
@@ -150,6 +156,7 @@ class MainActivity : ComponentActivity() {
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     currentTrackIndex = controller?.currentMediaItemIndex ?: 0
                     loadLyricsForCurrentTrack()
+                    tracks.getOrNull(currentTrackIndex)?.uri?.let { refreshAudioInfo(it) }
                 }
             })
             val sessionId = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
@@ -197,6 +204,9 @@ class MainActivity : ComponentActivity() {
                     showEqualizer = showEqualizer, onShowEqualizer = { showEqualizer = it },
                     showDsp = showDsp, onShowDsp = { showDsp = it },
                     showVisualizer = showVisualizer, onShowVisualizer = { showVisualizer = it },
+                    showHiResDialog = showHiResDialog, onShowHiResDialog = { showHiResDialog = it },
+                    audioFileInfo = currentAudioInfo, audioOutputs = audioOutputs,
+                    onRefreshAudioInfo = { refreshAudioInfo() },
                     visualizerMode = visualizerMode, visualizerWave = visualizerWave, visualizerFft = visualizerFft,
                     visualizerFps = visualizerFps, visualizerQuality = visualizerQuality, visualizerStatus = visualizerStatus,
                     onStartVisualizer = { requestVisualizerPermission() },
@@ -244,6 +254,52 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+    }
+
+    private fun refreshAudioInfo(uri: Uri? = tracks.getOrNull(currentTrackIndex)?.uri) {
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        audioOutputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { device ->
+            val type = audioDeviceTypeName(device.type)
+            AudioOutputInfo(
+                name = device.productName?.toString()?.takeIf { it.isNotBlank() } ?: type,
+                type = type,
+                isUsb = device.type == android.media.AudioDeviceInfo.TYPE_USB_DEVICE ||
+                    device.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+            )
+        }
+        if (uri == null) {
+            currentAudioInfo = AudioFileInfo(detail = "Pilih dan putar file audio untuk membaca metadata.")
+            return
+        }
+        lifecycleScope.launch {
+            val info = withContext(Dispatchers.IO) {
+                val extractor = MediaExtractor()
+                try {
+                    extractor.setDataSource(this@MainActivity, uri, null)
+                    var found: AudioFileInfo? = null
+                    for (index in 0 until extractor.trackCount) {
+                        val format = extractor.getTrackFormat(index)
+                        val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
+                        if (!mime.startsWith("audio/")) continue
+                        found = AudioFileInfo(
+                            mimeType = mime,
+                            sampleRate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) format.getInteger(MediaFormat.KEY_SAMPLE_RATE) else null,
+                            channels = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else null,
+                            bitrate = if (format.containsKey(MediaFormat.KEY_BIT_RATE)) format.getInteger(MediaFormat.KEY_BIT_RATE) else null,
+                            pcmEncoding = if (format.containsKey(MediaFormat.KEY_PCM_ENCODING)) format.getInteger(MediaFormat.KEY_PCM_ENCODING) else null,
+                            detail = "Metadata dari extractor Android; bukan pembacaan sinyal aktual pada DAC."
+                        )
+                        break
+                    }
+                    found ?: AudioFileInfo(detail = "Track audio tidak dikenali oleh extractor Android.")
+                } catch (error: Exception) {
+                    AudioFileInfo(detail = "Metadata tidak dapat dibaca: ${error.message ?: "format atau provider tidak didukung"}.")
+                } finally {
+                    runCatching { extractor.release() }
+                }
+            }
+            if (tracks.getOrNull(currentTrackIndex)?.uri == uri) currentAudioInfo = info
         }
     }
 
@@ -387,6 +443,7 @@ class MainActivity : ComponentActivity() {
                 .build()
         }
         c.setMediaItems(items, index, 0L)
+        refreshAudioInfo(tracks[index].uri)
         c.prepare()
         c.play()
     }
@@ -411,6 +468,8 @@ private fun AudioHome(
     onImportLyrics: () -> Unit, onSpeedChange: (Float) -> Unit, onPitchChange: (Int) -> Unit, onResetPlayback: () -> Unit,
     showDsp: Boolean, onShowDsp: (Boolean) -> Unit,
     showVisualizer: Boolean, onShowVisualizer: (Boolean) -> Unit,
+    showHiResDialog: Boolean, onShowHiResDialog: (Boolean) -> Unit,
+    audioFileInfo: AudioFileInfo, audioOutputs: List<AudioOutputInfo>, onRefreshAudioInfo: () -> Unit,
     visualizerMode: String, visualizerWave: List<Float>, visualizerFft: List<Float>,
     visualizerFps: Int, visualizerQuality: Int, visualizerStatus: String,
     onStartVisualizer: () -> Unit, onStopVisualizer: () -> Unit,
@@ -462,6 +521,10 @@ private fun AudioHome(
             onDismiss = { onShowVisualizer(false) }
         )
     }
+    if (showHiResDialog) {
+        HiResAudioDialog(fileInfo = audioFileInfo, outputs = audioOutputs, onRefresh = onRefreshAudioInfo,
+            onDismiss = { onShowHiResDialog(false) })
+    }
     if (showEqualizer) {
         EqualizerDialog(
             levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,
@@ -477,7 +540,7 @@ private fun AudioHome(
                 Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
             }
             Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-                Text("0.7.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                Text("0.8.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -525,6 +588,9 @@ private fun AudioHome(
             }
             IconButton(onClick = { onShowVisualizer(true) }) {
                 Icon(Icons.Default.GraphicEq, "Visualizer", tint = Ice)
+            }
+            IconButton(onClick = { onShowHiResDialog(true); onRefreshAudioInfo() }) {
+                Icon(Icons.Default.Headphones, "Hi-Res dan output audio", tint = Ice)
             }
             IconButton(onClick = { onShowDsp(true) }) {
                 Icon(Icons.Default.GraphicEq, "Advanced Audio DSP", tint = Ice)
