@@ -636,7 +636,7 @@ private fun AudioHome(
                 Icon(Icons.Default.Settings, "Backup dan pengaturan", tint = Ice)
             }
             Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-                Text("0.9.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                Text("1.0.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(8.dp))
