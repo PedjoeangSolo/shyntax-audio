@@ -35,9 +35,11 @@ class AudioVisualizerEngine(
                     publish(null, data)
                 }
             }, Visualizer.getMaxCaptureRate().coerceAtMost(20_000), true, true)
-            enabled = true
+            enabled = false
         }
     }
+
+    fun start() { visualizer.enabled = true }
 
     fun setFrameRate(value: Int) {
         targetFrameRate = value.coerceIn(15, 60)
