@@ -248,7 +248,7 @@ private fun AudioHome(
                 Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
             }
             Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-                Text("0.3.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                Text("0.4.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))

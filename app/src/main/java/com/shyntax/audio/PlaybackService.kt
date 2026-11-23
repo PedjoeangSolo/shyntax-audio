@@ -21,7 +21,7 @@ class PlaybackService : MediaSessionService() {
             )
             setHandleAudioBecomingNoisy(true)
         }
-        mediaSession = MediaSession.Builder(this, player).build()
+        getSharedPreferences("shyntax_audio", MODE_PRIVATE).edit()\n            .putInt("audio_session_id", player.audioSessionId).apply()\n        mediaSession = MediaSession.Builder(this, player).build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
