@@ -18,6 +18,8 @@ class AudioVisualizerEngine(
     @Volatile private var targetFrameRate = frameRate.coerceIn(15, 60)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var lastFrameAt = 0L
+    private var latestWave: List<Float> = emptyList()
+    private var latestFft: List<Float> = emptyList()
     private val visualizer: Visualizer
 
     init {
@@ -47,8 +49,8 @@ class AudioVisualizerEngine(
         if (now - lastFrameAt < minInterval) return
         lastFrameAt = now
 
-        val wave = waveBytes?.map { ((it.toInt() and 0xff) - 128) / 128f }
-        val spectrum = fftBytes?.let { bytes ->
+        if (waveBytes != null) latestWave = waveBytes.map { ((it.toInt() and 0xff) - 128) / 128f }
+        if (fftBytes != null) latestFft = fftBytes.let { bytes ->
             val bins = ArrayList<Float>(bytes.size / 2)
             var i = 2
             while (i + 1 < bytes.size) {
@@ -61,7 +63,7 @@ class AudioVisualizerEngine(
             bins
         }
         mainHandler.post {
-            onFrame(wave.orEmpty(), spectrum.orEmpty())
+            onFrame(latestWave, latestFft)
         }
     }
 
