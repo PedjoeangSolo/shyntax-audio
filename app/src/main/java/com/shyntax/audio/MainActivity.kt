@@ -98,8 +98,30 @@ class MainActivity : ComponentActivity() {
     private var eqBandCount by mutableIntStateOf(10)
     private var showEqualizer by mutableStateOf(false)
     private var showHiResDialog by mutableStateOf(false)
+    private var showBackupDialog by mutableStateOf(false)
+    private var backupStatus by mutableStateOf("")
     private var currentAudioInfo by mutableStateOf(AudioFileInfo())
     private var audioOutputs by mutableStateOf<List<AudioOutputInfo>>(emptyList())
+
+    private val backupExportPicker = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val result = AppBackupManager.export(this@MainActivity, uri)
+                withContext(Dispatchers.Main) { backupStatus = result.fold({ "Backup berhasil dibuat." }, { "Backup gagal: ${it.message}" }) }
+            }
+        }
+    }
+    private val backupImportPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                val result = AppBackupManager.restore(this@MainActivity, uri)
+                withContext(Dispatchers.Main) {
+                    backupStatus = result.fold({ "Pemulihan berhasil. Tutup dan buka ulang aplikasi agar semua pengaturan diterapkan." }, { "Restore gagal: ${it.message}" })
+                    if (result.isSuccess) restoreLibrary()
+                }
+            }
+        }
+    }
 
     private val lyricsPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && currentTrackIndex in tracks.indices) {
@@ -206,6 +228,9 @@ class MainActivity : ComponentActivity() {
                     showVisualizer = showVisualizer, onShowVisualizer = { showVisualizer = it },
                     showHiResDialog = showHiResDialog, onShowHiResDialog = { showHiResDialog = it },
                     audioFileInfo = currentAudioInfo, audioOutputs = audioOutputs,
+                    showBackupDialog = showBackupDialog, onShowBackupDialog = { showBackupDialog = it }, backupStatus = backupStatus,
+                    onExportBackup = { backupExportPicker.launch("SHYNTAX-AUDIO-backup.zip") },
+                    onImportBackup = { backupImportPicker.launch(arrayOf("application/zip", "application/octet-stream")) },
                     onRefreshAudioInfo = { refreshAudioInfo() },
                     visualizerMode = visualizerMode, visualizerWave = visualizerWave, visualizerFft = visualizerFft,
                     visualizerFps = visualizerFps, visualizerQuality = visualizerQuality, visualizerStatus = visualizerStatus,
@@ -469,7 +494,7 @@ private fun AudioHome(
     showDsp: Boolean, onShowDsp: (Boolean) -> Unit,
     showVisualizer: Boolean, onShowVisualizer: (Boolean) -> Unit,
     showHiResDialog: Boolean, onShowHiResDialog: (Boolean) -> Unit,
-    audioFileInfo: AudioFileInfo, audioOutputs: List<AudioOutputInfo>, onRefreshAudioInfo: () -> Unit,
+    audioFileInfo: AudioFileInfo, audioOutputs: List<AudioOutputInfo>, onRefreshAudioInfo: () -> Unit,\n    showBackupDialog: Boolean, onShowBackupDialog: (Boolean) -> Unit, backupStatus: String,\n    onExportBackup: () -> Unit, onImportBackup: () -> Unit,
     visualizerMode: String, visualizerWave: List<Float>, visualizerFft: List<Float>,
     visualizerFps: Int, visualizerQuality: Int, visualizerStatus: String,
     onStartVisualizer: () -> Unit, onStopVisualizer: () -> Unit,
@@ -540,7 +565,7 @@ private fun AudioHome(
                 Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
             }
             Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-                Text("0.8.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                Text("0.9.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))
