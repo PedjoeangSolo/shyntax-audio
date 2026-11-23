@@ -148,6 +148,7 @@ class MainActivity : ComponentActivity() {
                         dspBass = bass; dspTreble = treble; dspWidth = width; dspLoudness = loudness; dspReverb = reverb
                         dspEngine?.apply(bass, width, loudness, reverb)
                         eqEngine?.applyTreble(treble)
+                        if (treble != 0) { eqEnabled = true; eqEngine?.setEnabled(true); saveEqSettings() }
                         getSharedPreferences("shyntax_dsp", MODE_PRIVATE).edit()
                             .putInt("bass", bass).putInt("treble", treble).putInt("width", width)
                             .putInt("loudness", loudness).putString("reverb", reverb).apply()
@@ -171,6 +172,7 @@ class MainActivity : ComponentActivity() {
                         }
                         for (i in 0 until 31) eqLevels[i] = if (eqBandCount == 10) values[(i * 9 / 30).coerceIn(0,9)] else values[(i * 9 / 30).coerceIn(0,9)]
                         eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
+                        eqEngine?.applyTreble(dspTreble)
                         saveEqSettings()
                     },
                     onParametricApply = { frequencies, gains, qs ->
