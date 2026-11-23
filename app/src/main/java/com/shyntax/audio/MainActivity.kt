@@ -1,6 +1,9 @@
 package com.shyntax.audio
 
 import android.content.ComponentName
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
@@ -62,6 +65,18 @@ class MainActivity : ComponentActivity() {
     private var eqEngine: NativeEqEngine? = null
     private var dspEngine: NativeDspEngine? = null
     private var showDsp by mutableStateOf(false)
+    private var showVisualizer by mutableStateOf(false)
+    private var visualizerEngine: AudioVisualizerEngine? = null
+    private var visualizerWave by mutableStateOf<List<Float>>(emptyList())
+    private var visualizerFft by mutableStateOf<List<Float>>(emptyList())
+    private var visualizerStatus by mutableStateOf("Visualizer belum dimulai")
+    private var visualizerMode by mutableStateOf("Waveform")
+    private var visualizerFps by mutableIntStateOf(30)
+    private var visualizerQuality by mutableIntStateOf(64)
+    private val audioPermissionLauncher = registerForActivityResult(RequestPermission()) { granted ->
+        if (granted) startVisualizerCapture()
+        else visualizerStatus = "Izin Audio ditolak. Izinkan RECORD_AUDIO untuk membaca visualizer."
+    }
     private var dspBass by mutableIntStateOf(0)
     private var dspTreble by mutableIntStateOf(0)
     private var dspWidth by mutableIntStateOf(0)
@@ -86,6 +101,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         restoreLibrary()
+        val visualPrefs = getSharedPreferences("shyntax_visualizer", MODE_PRIVATE)
+        visualizerMode = visualPrefs.getString("mode", "Waveform") ?: "Waveform"
+        visualizerFps = visualPrefs.getInt("fps", 30).coerceIn(15, 60)
+        visualizerQuality = visualPrefs.getInt("quality", 64).coerceIn(32, 128)
         val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
         future.addListener({
@@ -143,6 +162,14 @@ class MainActivity : ComponentActivity() {
                     eqLevels = eqLevels.toList(), eqEnabled = eqEnabled, eqBandCount = eqBandCount,
                     showEqualizer = showEqualizer, onShowEqualizer = { showEqualizer = it },
                     showDsp = showDsp, onShowDsp = { showDsp = it },
+                    showVisualizer = showVisualizer, onShowVisualizer = { showVisualizer = it },
+                    visualizerMode = visualizerMode, visualizerWave = visualizerWave, visualizerFft = visualizerFft,
+                    visualizerFps = visualizerFps, visualizerQuality = visualizerQuality, visualizerStatus = visualizerStatus,
+                    onStartVisualizer = { requestVisualizerPermission() },
+                    onStopVisualizer = { visualizerEngine?.stop(); visualizerStatus = "Visualizer dijeda" },
+                    onVisualizerMode = { visualizerMode = it; getSharedPreferences("shyntax_visualizer", MODE_PRIVATE).edit().putString("mode", it).apply() },
+                    onVisualizerFps = { visualizerFps = it; getSharedPreferences("shyntax_visualizer", MODE_PRIVATE).edit().putInt("fps", it).apply(); visualizerEngine?.setFrameRate(it) },
+                    onVisualizerQuality = { visualizerQuality = it; getSharedPreferences("shyntax_visualizer", MODE_PRIVATE).edit().putInt("quality", it).apply() },
                     dspBass = dspBass, dspTreble = dspTreble, dspWidth = dspWidth, dspLoudness = dspLoudness, dspReverb = dspReverb,
                     onDspChange = { bass, treble, width, loudness, reverb ->
                         dspBass = bass; dspTreble = treble; dspWidth = width; dspLoudness = loudness; dspReverb = reverb
@@ -183,6 +210,33 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+    }
+
+    private fun requestVisualizerPermission() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startVisualizerCapture()
+        } else {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun startVisualizerCapture() {
+        val sessionId = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
+        if (sessionId <= 0) {
+            visualizerStatus = "Sesi audio belum tersedia. Putar lagu terlebih dahulu."
+            return
+        }
+        runCatching {
+            visualizerEngine?.stop()
+            visualizerEngine = AudioVisualizerEngine(sessionId, visualizerFps) { wave, fft ->
+                visualizerWave = wave
+                visualizerFft = fft
+            }
+            visualizerEngine?.start()
+            visualizerStatus = "Terhubung ke sesi audio"
+        }.onFailure {
+            visualizerStatus = "Visualizer tidak tersedia: ${it.message ?: "efek audio ditolak perangkat"}"
         }
     }
 
@@ -272,6 +326,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         eqEngine?.release()
         dspEngine?.release()
+        visualizerEngine?.stop()
         controller?.release()
         super.onDestroy()
     }
@@ -284,6 +339,11 @@ private fun AudioHome(
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
     eqLevels: List<Float>, eqEnabled: Boolean, eqBandCount: Int, showEqualizer: Boolean,
     showDsp: Boolean, onShowDsp: (Boolean) -> Unit,
+    showVisualizer: Boolean, onShowVisualizer: (Boolean) -> Unit,
+    visualizerMode: String, visualizerWave: List<Float>, visualizerFft: List<Float>,
+    visualizerFps: Int, visualizerQuality: Int, visualizerStatus: String,
+    onStartVisualizer: () -> Unit, onStopVisualizer: () -> Unit,
+    onVisualizerMode: (String) -> Unit, onVisualizerFps: (Int) -> Unit, onVisualizerQuality: (Int) -> Unit,
     dspBass: Int, dspTreble: Int, dspWidth: Int, dspLoudness: Int, dspReverb: String,
     onDspChange: (Int, Int, Int, Int, String) -> Unit,
     onShowEqualizer: (Boolean) -> Unit, onEqToggle: (Boolean) -> Unit, onEqBandCount: (Int) -> Unit,
@@ -314,6 +374,15 @@ private fun AudioHome(
     if (showDsp) {
         DspDialog(bass = dspBass, treble = dspTreble, width = dspWidth, loudness = dspLoudness, reverb = dspReverb,
             onChange = onDspChange, onDismiss = { onShowDsp(false) })
+    }
+    if (showVisualizer) {
+        VisualizerDialog(
+            mode = visualizerMode, waveform = visualizerWave, fft = visualizerFft,
+            fps = visualizerFps, quality = visualizerQuality, status = visualizerStatus,
+            onMode = onVisualizerMode, onFps = onVisualizerFps, onQuality = onVisualizerQuality,
+            onStart = onStartVisualizer, onStop = onStopVisualizer,
+            onDismiss = { onShowVisualizer(false) }
+        )
     }
     if (showEqualizer) {
         EqualizerDialog(
@@ -372,6 +441,9 @@ private fun AudioHome(
             }
             IconButton(onClick = { onShowEqualizer(true) }) {
                 Icon(Icons.Default.Tune, "Equalizer", tint = Ice)
+            }
+            IconButton(onClick = { onShowVisualizer(true) }) {
+                Icon(Icons.Default.GraphicEq, "Visualizer", tint = Ice)
             }
             IconButton(onClick = { onShowDsp(true) }) {
                 Icon(Icons.Default.GraphicEq, "Advanced Audio DSP", tint = Ice)
