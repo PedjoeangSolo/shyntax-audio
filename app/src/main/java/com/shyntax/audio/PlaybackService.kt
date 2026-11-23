@@ -3,6 +3,7 @@ package com.shyntax.audio
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
@@ -21,8 +22,16 @@ class PlaybackService : MediaSessionService() {
             )
             setHandleAudioBecomingNoisy(true)
         }
-        getSharedPreferences("shyntax_audio", MODE_PRIVATE).edit()
-            .putInt("audio_session_id", player.audioSessionId).apply()
+        player.addAnalyticsListener(object : AnalyticsListener {
+            override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
+                getSharedPreferences("shyntax_audio", MODE_PRIVATE).edit()
+                    .putInt("audio_session_id", audioSessionId).apply()
+            }
+        })
+        if (player.audioSessionId > 0) {
+            getSharedPreferences("shyntax_audio", MODE_PRIVATE).edit()
+                .putInt("audio_session_id", player.audioSessionId).apply()
+        }
         mediaSession = MediaSession.Builder(this, player).build()
     }
 
