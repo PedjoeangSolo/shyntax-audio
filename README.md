@@ -1,4 +1,4 @@
-# SHYNTAX AUDIO — v0.8.0
+# SHYNTAX AUDIO — v0.9.0
 
 Native Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
@@ -18,7 +18,8 @@ Native Android music player built with Kotlin, Jetpack Compose and AndroidX Medi
   - Shows PCM encoding only when exposed by the decoder.
   - Detects connected Android output endpoints, including USB audio devices/headsets, wired, Bluetooth, HDMI and built-in speaker.
   - Refreshes the current output endpoint list on demand.
-- Dark + Ice Blue interface.
+- Dark + Ice Blue interface with a dedicated adaptive Android launcher icon.
+- ZIP backup and restore for library references, favorite tracks, lyrics, EQ, DSP, playback tempo/pitch and visualizer preferences. Music files are excluded; Android SAF URI permissions may need to be granted again if restored on another device.
 
 ## v0.8.0 scope and supported-format expectations
 The player uses Media3/Android platform extractors. Common formats supported by the standard Android/Media3 path include MP3, AAC (including AAC in M4A/MP4), WAV, FLAC, Ogg Vorbis and Opus, subject to Android codec/provider support. Container and codec support can vary by Android build. APE and DSD/DSF/DFF are not added by this milestone.
@@ -33,10 +34,17 @@ The player uses Media3/Android platform extractors. Common formats supported by 
 - The Android Visualizer and Equalizer are device/ROM dependent. The 10/31-band UI maps to bands exposed by Android and is not a 31-independent-biquad software engine.
 - Lyrics auto-read remains limited to MP3 ID3v2 USLT/TXXX and FLAC Vorbis Comment LYRICS; manual LRC/TXT import remains available.
 
+## v0.9.0 backup notes
+- Backup is a ZIP containing a versioned JSON settings manifest.
+- Restore validates the archive and supported preference value types before applying data.
+- After restore, restart the app to reinitialize audio effects and playback parameters.
+- The backup does not copy audio files or Android-granted access permissions to external document URIs.
+
 ## Device testing
 - v0.6.0 visualizer: user-tested on TECNO Pova 7 4G / Android 16; all reported checks passed.
 - v0.7.1 lyrics/tempo/pitch and embedded lyrics: user confirmed all functions worked.
-- v0.8.0 Hi-Res metadata and USB output detection: build and real-device testing pending.
+- v0.8.0 Hi-Res metadata and USB output detection: user confirmed all functions worked.
+- v0.9.0 backup/restore and launcher icon: build and real-device testing pending.
 
 ## Build
 Run **Actions → Build SHYNTAX AUDIO APK** or use the GitHub Actions workflow after pushing to `main`. Requires JDK 17 and Android SDK 35.
