@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
@@ -65,6 +66,11 @@ class MainActivity : ComponentActivity() {
     private var eqEngine: NativeEqEngine? = null
     private var dspEngine: NativeDspEngine? = null
     private var showDsp by mutableStateOf(false)
+    private var showLyricsControls by mutableStateOf(false)
+    private var currentTrackIndex by mutableIntStateOf(0)
+    private var lyricsText by mutableStateOf("")
+    private var playbackSpeed by mutableFloatStateOf(1f)
+    private var pitchSemitones by mutableIntStateOf(0)
     private var showVisualizer by mutableStateOf(false)
     private var visualizerEngine: AudioVisualizerEngine? = null
     private var visualizerWave by mutableStateOf<List<Float>>(emptyList())
@@ -87,6 +93,18 @@ class MainActivity : ComponentActivity() {
     private var eqBandCount by mutableIntStateOf(10)
     private var showEqualizer by mutableStateOf(false)
 
+    private val lyricsPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && currentTrackIndex in tracks.indices) {
+            runCatching { contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            val text = runCatching { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }.getOrNull()
+            if (text != null) {
+                lyricsText = text
+                getSharedPreferences("shyntax_lyrics", MODE_PRIVATE).edit()
+                    .putString(tracks[currentTrackIndex].uri.toString(), text).apply()
+            }
+        }
+    }
+
     private val picker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
             runCatching {
@@ -105,6 +123,9 @@ class MainActivity : ComponentActivity() {
         visualizerMode = visualPrefs.getString("mode", "Waveform") ?: "Waveform"
         visualizerFps = visualPrefs.getInt("fps", 30).coerceIn(15, 60)
         visualizerQuality = visualPrefs.getInt("quality", 64).coerceIn(32, 128)
+        val playbackPrefs = getSharedPreferences("shyntax_playback", MODE_PRIVATE)
+        playbackSpeed = playbackPrefs.getFloat("speed", 1f).coerceIn(0.5f, 2f)
+        pitchSemitones = playbackPrefs.getInt("pitch", 0).coerceIn(-12, 12)
         val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
         val future = MediaController.Builder(this, token).buildAsync()
         future.addListener({
@@ -122,6 +143,10 @@ class MainActivity : ComponentActivity() {
                 }
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     duration = controller?.duration?.takeIf { it > 0 } ?: 0L
+                }
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    currentTrackIndex = controller?.currentMediaItemIndex ?: 0
+                    loadLyricsForCurrentTrack()
                 }
             })
             val sessionId = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
@@ -159,6 +184,12 @@ class MainActivity : ComponentActivity() {
                     onNext = { controller?.seekToNextMediaItem() },
                     onPrevious = { controller?.seekToPreviousMediaItem() },
                     onSeek = { controller?.seekTo(it) },
+                    showLyricsControls = showLyricsControls, onShowLyricsControls = { showLyricsControls = it },
+                    lyricsText = lyricsText, playbackSpeed = playbackSpeed, pitchSemitones = pitchSemitones,
+                    onImportLyrics = { lyricsPicker.launch(arrayOf("text/*", "application/octet-stream")) },
+                    onSpeedChange = { value -> playbackSpeed = value.coerceIn(0.5f, 2f); applyPlaybackParameters() },
+                    onPitchChange = { value -> pitchSemitones = value.coerceIn(-12, 12); applyPlaybackParameters() },
+                    onResetPlayback = { playbackSpeed = 1f; pitchSemitones = 0; applyPlaybackParameters() },
                     eqLevels = eqLevels.toList(), eqEnabled = eqEnabled, eqBandCount = eqBandCount,
                     showEqualizer = showEqualizer, onShowEqualizer = { showEqualizer = it },
                     showDsp = showDsp, onShowDsp = { showDsp = it },
@@ -211,6 +242,19 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun loadLyricsForCurrentTrack() {
+        lyricsText = tracks.getOrNull(currentTrackIndex)?.let { track ->
+            getSharedPreferences("shyntax_lyrics", MODE_PRIVATE).getString(track.uri.toString(), "")
+        }.orEmpty()
+    }
+
+    private fun applyPlaybackParameters() {
+        val pitch = Math.pow(2.0, pitchSemitones / 12.0).toFloat()
+        controller?.playbackParameters = PlaybackParameters(playbackSpeed, pitch)
+        getSharedPreferences("shyntax_playback", MODE_PRIVATE).edit()
+            .putFloat("speed", playbackSpeed).putInt("pitch", pitchSemitones).apply()
     }
 
     private fun requestVisualizerPermission() {
@@ -312,6 +356,8 @@ class MainActivity : ComponentActivity() {
     private fun playTrack(index: Int) {
         val c = controller ?: return
         if (index !in tracks.indices) return
+        currentTrackIndex = index
+        loadLyricsForCurrentTrack()
         val items = tracks.map { track ->
             MediaItem.Builder().setUri(track.uri)
                 .setMediaMetadata(MediaMetadata.Builder()
@@ -338,6 +384,9 @@ private fun AudioHome(
     onImport: () -> Unit, onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
     eqLevels: List<Float>, eqEnabled: Boolean, eqBandCount: Int, showEqualizer: Boolean,
+    showLyricsControls: Boolean, onShowLyricsControls: (Boolean) -> Unit,
+    lyricsText: String, playbackSpeed: Float, pitchSemitones: Int,
+    onImportLyrics: () -> Unit, onSpeedChange: (Float) -> Unit, onPitchChange: (Int) -> Unit, onResetPlayback: () -> Unit,
     showDsp: Boolean, onShowDsp: (Boolean) -> Unit,
     showVisualizer: Boolean, onShowVisualizer: (Boolean) -> Unit,
     visualizerMode: String, visualizerWave: List<Float>, visualizerFft: List<Float>,
@@ -371,6 +420,13 @@ private fun AudioHome(
         }
     }
 
+    if (showLyricsControls) {
+        LyricsTempoPitchDialog(
+            lyrics = lyricsText, positionMs = position, speed = playbackSpeed, pitchSemitones = pitchSemitones,
+            onImportLyrics = onImportLyrics, onSpeedChange = onSpeedChange, onPitchChange = onPitchChange,
+            onReset = onResetPlayback, onDismiss = { onShowLyricsControls(false) }
+        )
+    }
     if (showDsp) {
         DspDialog(bass = dspBass, treble = dspTreble, width = dspWidth, loudness = dspLoudness, reverb = dspReverb,
             onChange = onDspChange, onDismiss = { onShowDsp(false) })
@@ -438,6 +494,9 @@ private fun AudioHome(
                         DropdownMenuItem(text = { Text(option) }, onClick = { sortBy = option; sortMenu = false })
                     }
                 }
+            }
+            IconButton(onClick = { onShowLyricsControls(true) }) {
+                Icon(Icons.Default.Lyrics, "Lirik, tempo dan pitch", tint = Ice)
             }
             IconButton(onClick = { onShowEqualizer(true) }) {
                 Icon(Icons.Default.Tune, "Equalizer", tint = Ice)
