@@ -246,7 +246,11 @@ class MainActivity : ComponentActivity() {
 private fun AudioHome(
     tracks: List<Track>, title: String, playing: Boolean, position: Long, duration: Long,
     onImport: () -> Unit, onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
-    onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit
+    onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
+    eqLevels: List<Float>, eqEnabled: Boolean, eqBandCount: Int, showEqualizer: Boolean,
+    onShowEqualizer: (Boolean) -> Unit, onEqToggle: (Boolean) -> Unit, onEqBandCount: (Int) -> Unit,
+    onEqChange: (Int, Float) -> Unit, onEqPreset: (String) -> Unit,
+    onParametricApply: (List<Float>, List<Float>, List<Float>) -> Unit
 ) {
     var tab by remember { mutableStateOf("Lagu") }
     var query by remember { mutableStateOf("") }
