@@ -552,6 +552,10 @@ private fun AudioHome(
         HiResAudioDialog(fileInfo = audioFileInfo, outputs = audioOutputs, onRefresh = onRefreshAudioInfo,
             onDismiss = { onShowHiResDialog(false) })
     }
+    if (showBackupDialog) {
+        BackupDialog(status = backupStatus, onExport = onExportBackup, onImport = onImportBackup,
+            onDismiss = { onShowBackupDialog(false) })
+    }
     if (showEqualizer) {
         EqualizerDialog(
             levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,
@@ -565,6 +569,9 @@ private fun AudioHome(
             Column(Modifier.weight(1f)) {
                 Text("SHYNTAX", color = Ice, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                 Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
+            }
+            IconButton(onClick = { onShowBackupDialog(true) }) {
+                Icon(Icons.Default.Settings, "Backup dan pengaturan", tint = Ice)
             }
             Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
                 Text("0.9.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
