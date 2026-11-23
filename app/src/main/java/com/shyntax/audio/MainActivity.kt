@@ -11,6 +11,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -102,6 +103,10 @@ class MainActivity : ComponentActivity() {
     private var backupStatus by mutableStateOf("")
     private var currentAudioInfo by mutableStateOf(AudioFileInfo())
     private var audioOutputs by mutableStateOf<List<AudioOutputInfo>>(emptyList())
+    private var scanStatus by mutableStateOf("Menyiapkan pemindaian musik…")
+    private val musicPermissionLauncher = registerForActivityResult(RequestPermission()) { granted ->
+        if (granted) scanMediaLibrary() else scanStatus = "Izin musik ditolak. Gunakan Tambah Lagu untuk memilih file manual."
+    }
 
     private val backupExportPicker = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
@@ -205,6 +210,8 @@ class MainActivity : ComponentActivity() {
                     tracks = tracks.toList(), title = currentTitle, playing = playing,
                     position = position, duration = duration,
                     onImport = { picker.launch(arrayOf("audio/*")) },
+                    scanStatus = scanStatus,
+                    onScan = { requestMusicScan() },
                     onSelect = { playTrack(it) },
                     onFavorite = { index ->
                         if (index in tracks.indices) {
@@ -279,6 +286,60 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+        lifecycleScope.launch { delay(700); requestMusicScan() }
+    }
+
+    private fun requestMusicScan() {
+        val permission = if (android.os.Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
+            else Manifest.permission.READ_EXTERNAL_STORAGE
+        if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) scanMediaLibrary()
+        else musicPermissionLauncher.launch(permission)
+    }
+
+    private fun scanMediaLibrary() {
+        scanStatus = "Memindai penyimpanan musik…"
+        lifecycleScope.launch {
+            val discovered = withContext(Dispatchers.IO) {
+                val result = mutableListOf<Track>()
+                val projection = arrayOf(
+                    MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE,
+                    MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.ALBUM,
+                    MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.MIME_TYPE
+                )
+                val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                contentResolver.query(collection, projection, null, null,
+                    "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
+                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                    val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                    val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                    val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                    val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+                    while (cursor.moveToNext()) {
+                        val mime = cursor.getString(mimeCol).orEmpty()
+                        if (mime.isNotBlank() && !mime.startsWith("audio/")) continue
+                        val uri = Uri.withAppendedPath(collection, cursor.getLong(idCol).toString())
+                        result.add(Track(
+                            uri = uri,
+                            title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: "Audio",
+                            artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Artis tidak diketahui",
+                            album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Album tidak diketahui",
+                            durationMs = cursor.getLong(durationCol).coerceAtLeast(0L)
+                        ))
+                    }
+                }
+                result
+            }
+            val favorites = tracks.associate { it.uri.toString() to it.isFavorite }
+            val merged = (tracks + discovered).distinctBy { it.uri.toString() }
+                .map { it.copy(isFavorite = favorites[it.uri.toString()] ?: it.isFavorite) }
+            tracks.clear()
+            tracks.addAll(merged)
+            saveLibrary()
+            scanStatus = if (discovered.isEmpty()) "Pemindaian selesai: tidak ada lagu ditemukan."
+                else "Pemindaian selesai: ${discovered.size} file audio ditemukan; ${tracks.size} lagu di pustaka."
+            if (tracks.isNotEmpty() && controller?.mediaItemCount == 0) playTrack(0)
         }
     }
 
@@ -485,7 +546,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AudioHome(
     tracks: List<Track>, title: String, playing: Boolean, position: Long, duration: Long,
-    onImport: () -> Unit, onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
+    onImport: () -> Unit, scanStatus: String, onScan: () -> Unit,
+    onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
     eqLevels: List<Float>, eqEnabled: Boolean, eqBandCount: Int, showEqualizer: Boolean,
     showLyricsControls: Boolean, onShowLyricsControls: (Boolean) -> Unit,
@@ -577,7 +639,12 @@ private fun AudioHome(
                 Text("0.9.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
             }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(scanStatus, color = Color.LightGray, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 2)
+            TextButton(onClick = onScan) { Icon(Icons.Default.Refresh, null, tint = Ice); Spacer(Modifier.width(4.dp)); Text("Pindai") }
+        }
+        Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = query, onValueChange = { query = it; groupFilter = null },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
