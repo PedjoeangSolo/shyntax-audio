@@ -12,9 +12,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -246,9 +248,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadLyricsForCurrentTrack() {
-        lyricsText = tracks.getOrNull(currentTrackIndex)?.let { track ->
-            getSharedPreferences("shyntax_lyrics", MODE_PRIVATE).getString(track.uri.toString(), "")
-        }.orEmpty()
+        val track = tracks.getOrNull(currentTrackIndex) ?: run {
+            lyricsText = ""
+            return
+        }
+        val trackUri = track.uri
+        // A manually imported lyric is an explicit override. Otherwise read embedded tags off the UI thread.
+        val manualLyrics = getSharedPreferences("shyntax_lyrics", MODE_PRIVATE)
+            .getString(trackUri.toString(), null)
+        if (!manualLyrics.isNullOrBlank()) {
+            lyricsText = manualLyrics
+            return
+        }
+        lyricsText = ""
+        lifecycleScope.launch {
+            val embedded = withContext(Dispatchers.IO) {
+                EmbeddedLyricsReader.read(contentResolver, trackUri)
+            }.orEmpty()
+            // Ignore a slow read if the user has already changed to another track.
+            if (tracks.getOrNull(currentTrackIndex)?.uri == trackUri) {
+                lyricsText = embedded
+            }
+        }
     }
 
     private fun applyPlaybackParameters() {
