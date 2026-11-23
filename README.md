@@ -1,4 +1,4 @@
-# SHYNTAX AUDIO — v0.7.0
+# SHYNTAX AUDIO — v0.7.1
 
 Native Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 
@@ -16,7 +16,7 @@ Native Android music player built with Kotlin, Jetpack Compose and AndroidX Medi
 - Live visualizer using waveform and FFT data from the active playback audio session.
 - Five visualizer modes: Waveform, Spectrum Bars, Circular Spectrum, Oscilloscope and Particles.
 - Visualizer performance controls: 15/30/60 FPS and FFT display quality options.
-- LRC synchronized lyrics and plain TXT lyrics import, saved per track.
+- Automatic embedded lyrics reading for MP3 ID3v2 USLT/TXXX and FLAC Vorbis Comment LYRICS tags.\n- LRC synchronized lyrics and plain TXT lyrics import, saved per track; a manual import overrides embedded lyrics for that track.
 - Current lyric line highlighting based on playback position.
 - Playback speed / tempo control from 0.5× to 2.0×.
 - Pitch shifting from -12 to +12 semitones, independently adjustable from playback speed.
@@ -33,7 +33,7 @@ The lyrics, tempo and pitch controls have been added to the source. The GitHub A
 Open this folder in Android Studio (JDK 17, Android SDK 35), or push it to GitHub and run **Actions → Build SHYNTAX AUDIO APK**.
 
 ## Notes and limitations
-This is an evolving player foundation, not yet the complete Hi-Res player. LRC timestamps are used for line highlighting; plain TXT files are displayed without time synchronization. Lyrics are imported for the currently selected track and stored locally against that track's URI. Online lyrics fetching and an in-app lyric timing editor are not included yet.
+This is an evolving player foundation, not yet the complete Hi-Res player. LRC timestamps are used for line highlighting; plain TXT files are displayed without time synchronization. Lyrics are imported for the currently selected track and stored locally against that track's URI. Automatic embedded-tag support is currently limited to MP3 ID3v2 USLT/TXXX and FLAC Vorbis Comment LYRICS; other formats/tag variants may need additional parsing. OGG, M4A/ALAC, APE and synchronized ID3 SYLT are not yet supported by this embedded reader. Online lyrics fetching and an in-app lyric timing editor are not included yet.
 
 Tempo and pitch use Media3 playback parameters. The effective time-stretch/pitch-shift quality depends on Media3's processing path, codec and device. This is not a promise of artifact-free studio-grade processing; test with different tracks and listen for artifacts. Speed/pitch processing may affect bit-perfect output, so bit-perfect playback must not be claimed while these processing controls are active.
 
