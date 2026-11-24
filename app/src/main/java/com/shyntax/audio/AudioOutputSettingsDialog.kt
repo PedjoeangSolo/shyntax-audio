@@ -79,14 +79,15 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
                             }
                         }
                     }
-                    Text("Kualitas interpolasi", style = MaterialTheme.typography.labelLarge)
+                    Text("Kualitas resampling", style = MaterialTheme.typography.labelLarge)
+                    Text("Cepat: interpolasi linear dengan beban CPU rendah. Seimbang: sinc 4-tap. Tinggi: sinc 12-tap dengan beban CPU lebih besar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("Cepat", "Seimbang", "Tinggi").forEach { option ->
                             FilterChip(selected = resamplerQuality == option, onClick = { resamplerQuality = option; save() }, label = { Text(option) })
                         }
                     }
                 }
-                Text("Resampler hanya memproses PCM 16-bit. Format PCM lain dan audio encoded/passthrough dilewatkan tanpa perubahan. Pengaturan diterapkan saat layanan pemutar dibuat ulang; tutup paksa aplikasi lalu buka kembali setelah mengubah mode.", style = MaterialTheme.typography.bodySmall)
+                Text("Resampler hanya memproses PCM 16-bit. Format PCM lain dan audio encoded/passthrough dilewatkan tanpa perubahan. Pengaturan diterapkan saat layanan pemutar dibuat ulang; tutup paksa aplikasi lalu buka kembali setelah mengubah mode. Catatan: konversi saat ini bekerja per blok PCM; kesinambungan fase antarblok dan validasi output DAC masih menjadi pekerjaan lanjutan.", style = MaterialTheme.typography.bodySmall)
 
                 HorizontalDivider()
                 Text("Nilai Sampel", style = MaterialTheme.typography.titleSmall)
