@@ -642,6 +642,9 @@ private fun AudioHome(
                 Text("SHYNTAX", color = Ice, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                 Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
             }
+            IconButton(onClick = { showLibrary = false }) {
+                Icon(Icons.Default.Album, "Kembali ke Now Playing", tint = Ice)
+            }
             IconButton(onClick = { onShowAudioOutputSettings(true) }) {
                 Icon(Icons.Default.Headphones, "Pengaturan output audio", tint = Ice)
             }
