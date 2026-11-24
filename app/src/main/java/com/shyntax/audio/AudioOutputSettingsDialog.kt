@@ -74,7 +74,7 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
                                 FilterChip(
                                     selected = resamplerRate == rate,
                                     onClick = { resamplerRate = rate; save() },
-                                    label = { Text(if (rate >= 100000) "\${rate / 1000} kHz" else "\${rate / 1000.0} kHz") }
+                                    label = { Text(if (rate >= 100000) "${rate / 1000} kHz" else "${rate / 1000.0} kHz") }
                                 )
                             }
                         }
