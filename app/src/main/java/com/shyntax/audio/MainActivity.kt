@@ -846,25 +846,37 @@ private fun AudioHome(
         )
         Spacer(Modifier.height(10.dp))
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            Row(
-                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                listOf("Lagu", "Album", "Artis", "Riwayat").forEach {
-                    FilterChip(selected = tab == it, onClick = { tab = it; groupFilter = null; favoritesOnly = false }, label = { Text(it) })
-                }
-                FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = !favoritesOnly; groupFilter = null },
-                    label = { Icon(Icons.Default.Favorite, null, modifier = Modifier.size(15.dp)); Spacer(Modifier.width(4.dp)); Text("Favorit") })
+            listOf("Lagu", "Album", "Artis", "Riwayat").forEach {
+                FilterChip(
+                    selected = tab == it,
+                    onClick = { tab = it; groupFilter = null; favoritesOnly = false },
+                    label = { Text(it) }
+                )
             }
+            FilterChip(
+                selected = favoritesOnly,
+                onClick = { favoritesOnly = !favoritesOnly; groupFilter = null },
+                label = {
+                    Icon(Icons.Default.Favorite, null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Favorit")
+                }
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Box {
                 IconButton(onClick = { sortMenu = true }) { Icon(Icons.Default.Sort, "Urutkan", tint = Ice) }
                 DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                    listOf("Judul A–Z", "Judul Z–A", "Artis", "Album").forEach { option ->
+                    listOf("Judul A–Z", "Judul Z–A", "Artis", "Album", "Riwayat").forEach { option ->
                         DropdownMenuItem(text = { Text(option) }, onClick = { sortBy = option; sortMenu = false })
                     }
                 }
@@ -884,7 +896,9 @@ private fun AudioHome(
             IconButton(onClick = { onShowDsp(true) }) {
                 Icon(Icons.Default.GraphicEq, "Advanced Audio DSP", tint = Ice)
             }
-            IconButton(onClick = onImport) { Icon(Icons.Default.Add, "Tambah lagu", tint = Ice) }
+            IconButton(onClick = onImport) {
+                Icon(Icons.Default.Add, "Tambah lagu", tint = Ice)
+            }
         }
         Text(
             when {
