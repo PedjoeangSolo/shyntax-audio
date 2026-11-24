@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 
 private val sampleRates = listOf("Otomatis", "44.1 kHz", "48 kHz", "88.2 kHz", "96 kHz", "176.4 kHz", "192 kHz", "352.8 kHz", "384 kHz")
 private val sampleFormats = listOf("Otomatis", "16 bit", "24 bit", "32 bit", "Float32")
+private val resamplerRates = listOf(44100, 48000, 88200, 96000, 176400, 192000)
 
 @Composable
 fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
@@ -24,6 +25,9 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
     var headroom by remember { mutableStateOf(prefs.getBoolean("headroom", false)) }
     var noEq by remember { mutableStateOf(prefs.getBoolean("no_eq", false)) }
     var gapless by remember { mutableStateOf(prefs.getBoolean("gapless", false)) }
+    var resamplerMode by remember { mutableStateOf(prefs.getString("resampler_mode", "Otomatis") ?: "Otomatis") }
+    var resamplerRate by remember { mutableIntStateOf(prefs.getInt("resampler_rate", 48000)) }
+    var resamplerQuality by remember { mutableStateOf(prefs.getString("resampler_quality", "Seimbang") ?: "Seimbang") }
 
     fun save() {
         prefs.edit()
@@ -36,6 +40,9 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
             .putBoolean("headroom", headroom)
             .putBoolean("no_eq", noEq)
             .putBoolean("gapless", gapless)
+            .putString("resampler_mode", resamplerMode)
+            .putInt("resampler_rate", resamplerRate)
+            .putString("resampler_quality", resamplerQuality)
             .apply()
     }
 
@@ -48,8 +55,38 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("Driver Output", style = MaterialTheme.typography.titleSmall)
-                Text("Android Audio / Media3", color = MaterialTheme.colorScheme.primary)
-                Text("Output saat ini dikelola Android. Pemilihan AudioTrack, OpenSL ES, dan jalur Hi-Res khusus belum tersedia pada mesin pemutar ini.", style = MaterialTheme.typography.bodySmall)
+                Text("Android AudioTrack / Media3", color = MaterialTheme.colorScheme.primary)
+                Text("Driver yang benar-benar aktif saat ini adalah AudioTrack melalui Media3. AAudio dan OpenSL ES belum tersedia sebagai pilihan driver.", style = MaterialTheme.typography.bodySmall)
+
+                HorizontalDivider()
+                Text("Resampler PCM", style = MaterialTheme.typography.titleSmall)
+                Text("Mode Otomatis mempertahankan laju sampel sumber. Mode Manual mengubah laju sampel PCM 16-bit sebelum dikirim ke AudioTrack.", style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("Nonaktif", "Otomatis", "Manual").forEach { option ->
+                        FilterChip(selected = resamplerMode == option, onClick = { resamplerMode = option; save() }, label = { Text(option) })
+                    }
+                }
+                if (resamplerMode == "Manual") {
+                    Text("Target sample rate", style = MaterialTheme.typography.labelLarge)
+                    resamplerRates.chunked(3).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { rate ->
+                                FilterChip(
+                                    selected = resamplerRate == rate,
+                                    onClick = { resamplerRate = rate; save() },
+                                    label = { Text(if (rate >= 100000) "\${rate / 1000} kHz" else "\${rate / 1000.0} kHz") }
+                                )
+                            }
+                        }
+                    }
+                    Text("Kualitas interpolasi", style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Cepat", "Seimbang", "Tinggi").forEach { option ->
+                            FilterChip(selected = resamplerQuality == option, onClick = { resamplerQuality = option; save() }, label = { Text(option) })
+                        }
+                    }
+                }
+                Text("Resampler hanya memproses PCM 16-bit. Format PCM lain dan audio encoded/passthrough dilewatkan tanpa perubahan. Pengaturan diterapkan saat layanan pemutar dibuat ulang; tutup paksa aplikasi lalu buka kembali setelah mengubah mode.", style = MaterialTheme.typography.bodySmall)
 
                 HorizontalDivider()
                 Text("Nilai Sampel", style = MaterialTheme.typography.titleSmall)
@@ -97,7 +134,7 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
 
                 HorizontalDivider()
                 Text("Catatan kompatibilitas", style = MaterialTheme.typography.titleSmall)
-                Text("Pengaturan ini menyimpan preferensi. Pemilihan driver, bit-depth, sample-rate, buffer, DVC, dan gapless belum mengubah jalur output Media3/Android. Hi-Res aktual tetap bergantung pada format sumber, Android, perangkat, dan DAC.", style = MaterialTheme.typography.bodySmall)
+                Text("Driver aktif adalah Android AudioTrack. Resampler manual bekerja pada PCM 16-bit melalui AudioProcessor Media3. Pemilihan format sampel, ukuran buffer, DVC, dan gapless di bagian lain masih berupa preferensi dan belum mengubah jalur output. Hi-Res aktual tetap bergantung pada format sumber, Android, perangkat, dan DAC.", style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = {
