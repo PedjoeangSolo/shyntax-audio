@@ -40,7 +40,7 @@ Roadmap ini menjadi daftar kerja resmi. Status "planned" berarti belum diimpleme
 - [ ] Auto volume normalization (opsional, dapat dimatikan)
 - [ ] Limiter dengan headroom aman
 - [ ] Channel balance dan mono/stereo
-- [ ] AB Repeat
+- [x] AB Repeat (A/B markers and automatic loop seek; requires device verification)
 - [ ] AB comparison untuk preset DSP/EQ (bukan klaim blind-test)
 - [ ] Parametric EQ preset import/export
 - [ ] Headphone profiles dan Auto EQ (dengan profil terukur, bukan tebakan)
