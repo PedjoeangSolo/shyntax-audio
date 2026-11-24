@@ -1,3 +1,9 @@
+## v1.3.2
+- Add the Media3 FFmpeg software decoder with ALAC support for files that the Android platform decoder cannot play.
+- Keep the platform decoder available as fallback for other supported formats.
+- Build native decoder libraries in GitHub Actions for Android ABIs.
+- Requires device playback verification with ALAC files at 44.1, 48, 96 and 192 kHz.
+
 # SHYNTAX AUDIO — Changelog
 
 ## 1.3.1
