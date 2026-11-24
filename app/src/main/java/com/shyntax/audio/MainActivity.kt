@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Image
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -946,10 +947,15 @@ private fun AudioHome(
                             Surface(color = Color(0xFF121E2D), shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.weight(1f).clickable { groupFilter = name }) {
                                 Column(Modifier.padding(10.dp)) {
-                                    Box(Modifier.fillMaxWidth().aspectRatio(1f).background(
-                                        androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF243D57), Color(0xFF172638), Color(0xFF263B55))),
-                                        RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-                                        Icon(if (tab == "Album") Icons.Default.Album else Icons.Default.Person, null, tint = Ice, modifier = Modifier.size(48.dp))
+                                    val coverUri = groupTracks.firstOrNull()?.uri
+                                    if (coverUri != null && tab == "Album") {
+                                        TrackArtwork(coverUri, Modifier.fillMaxWidth().aspectRatio(1f))
+                                    } else {
+                                        Box(Modifier.fillMaxWidth().aspectRatio(1f).background(
+                                            androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF243D57), Color(0xFF172638), Color(0xFF263B55))),
+                                            RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Person, null, tint = Ice, modifier = Modifier.size(48.dp))
+                                        }
                                     }
                                     Spacer(Modifier.height(9.dp))
                                     Text(name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
@@ -970,9 +976,7 @@ private fun AudioHome(
                     val track = indexed.value
                     Surface(color = Color(0xFF111C2A), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(48.dp).background(
-                                androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF24435B), Color(0xFF182638))), RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = Ice, modifier = Modifier.size(25.dp)) }
+                            TrackArtwork(track.uri, Modifier.size(48.dp))
                             Spacer(Modifier.width(11.dp))
                             Column(Modifier.weight(1f).clickable { onSelect(indexed.index) }.padding(vertical = 5.dp)) {
                                 Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
@@ -1213,6 +1217,36 @@ private fun AudioHome(
     }
 }
 
+
+
+@Composable
+private fun TrackArtwork(uri: Uri, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = uri) {
+        value = withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                retriever.embeddedPicture?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+            } catch (_: Exception) {
+                null
+            } finally {
+                runCatching { retriever.release() }
+            }
+        }
+    }
+    Surface(modifier = modifier, color = Color(0xFF1C3045), shape = RoundedCornerShape(9.dp)) {
+        if (bitmap != null) {
+            Image(bitmap!!.asImageBitmap(), contentDescription = "Sampul album", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Box(Modifier.fillMaxSize().background(
+                androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF24435B), Color(0xFF182638)))
+            ), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.MusicNote, null, tint = Ice, modifier = Modifier.size(25.dp))
+            }
+        }
+    }
+}
 
 @Composable
 private fun ShyntaxBottomBar(
