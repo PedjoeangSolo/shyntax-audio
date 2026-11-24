@@ -763,7 +763,7 @@ private fun AudioHome(
                 Icon(Icons.Default.Settings, "Backup dan pengaturan", tint = Ice)
             }
             Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-                Text("1.0.0", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp)
+                Text("v${BuildConfig.VERSION_NAME}", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -944,7 +944,7 @@ private fun AudioHome(
                 Column(Modifier.weight(1f)) {
                     Text("SHYNTAX", color = Ice, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp)
                     Text("AUDIO", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
-                    Text("HI-FI MUSIC EXPERIENCE", color = MutedText, fontSize = 9.sp, letterSpacing = 1.8.sp)
+                    Text("HI-FI MUSIC EXPERIENCE  •  v${BuildConfig.VERSION_NAME}", color = MutedText, fontSize = 9.sp, letterSpacing = 1.2.sp)
                 }
                 Surface(color = PanelRaised, shape = RoundedCornerShape(50)) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
