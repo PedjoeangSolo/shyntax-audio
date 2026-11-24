@@ -32,7 +32,7 @@ class ShyntaxResamplerProcessor(context: Context) : BaseAudioProcessor() {
         return AudioProcessor.AudioFormat(selectedRate, inputAudioFormat.channelCount, C.ENCODING_PCM_16BIT)
     }
 
-    override fun onQueueInput(inputBuffer: ByteBuffer) {
+    override fun queueInput(inputBuffer: ByteBuffer) {
         val channels = inputAudioFormat.channelCount
         val inputRate = inputAudioFormat.sampleRate
         val outputRate = outputAudioFormat.sampleRate
