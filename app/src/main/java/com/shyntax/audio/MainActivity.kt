@@ -572,6 +572,9 @@ private fun AudioHome(
     onEqChange: (Int, Float) -> Unit, onEqPreset: (String) -> Unit,
     onParametricApply: (List<Float>, List<Float>, List<Float>) -> Unit
 ) {
+    var showLibrary by remember { mutableStateOf(false) }
+    var shuffleEnabled by remember { mutableStateOf(false) }
+    var repeatEnabled by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf("Lagu") }
     var query by remember { mutableStateOf("") }
     var groupFilter by remember { mutableStateOf<String?>(null) }
@@ -632,6 +635,7 @@ private fun AudioHome(
             onPreset = onEqPreset, onParametricApply = onParametricApply
         )
     }
+    if (showLibrary) {
     Column(Modifier.fillMaxSize().background(Background).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
@@ -795,4 +799,130 @@ private fun AudioHome(
             }
         }
     }
-}
+    } else {
+        val activeIndex = tracks.indexOfFirst { it.title == title }.takeIf { it >= 0 } ?: 0
+        val activeTrack = tracks.getOrNull(activeIndex)
+        var sliderNow by remember(position) { mutableFloatStateOf(position.toFloat()) }
+        fun timeLabel(ms: Long): String {
+            val total = (ms.coerceAtLeast(0L) / 1000L).toInt()
+            return "%02d:%02d".format(total / 60, total % 60)
+        }
+        Column(
+            Modifier.fillMaxSize().background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(Color(0xFF10283D), Color(0xFF0B1725), Color(0xFF080D14))
+                )
+            ).padding(horizontal = 22.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { showLibrary = true }) {
+                    Icon(Icons.Default.ArrowBack, "Buka pustaka", tint = Color.White)
+                }
+                Text("Now Playing", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Box {
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "Menu", tint = Color.White) }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(text = { Text("Pustaka Musik") }, onClick = { menuExpanded = false; showLibrary = true })
+                        DropdownMenuItem(text = { Text("Pengaturan Output Audio") }, onClick = { menuExpanded = false; onShowAudioOutputSettings(true) })
+                        DropdownMenuItem(text = { Text("Visualizer") }, onClick = { menuExpanded = false; onShowVisualizer(true) })
+                        DropdownMenuItem(text = { Text("Equalizer") }, onClick = { menuExpanded = false; onShowEqualizer(true) })
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false).aspectRatio(1f),
+                shape = RoundedCornerShape(28.dp),
+                color = Color(0xFF342D5C),
+                shadowElevation = 18.dp
+            ) {
+                Box(
+                    Modifier.fillMaxSize().background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            listOf(Color(0xFF573B73), Color(0xFFFF855D), Color(0xFF294E7C))
+                        )
+                    )
+                ) {
+                    Box(Modifier.fillMaxWidth().height(110.dp).align(Alignment.TopCenter).background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x665D3C78), Color.Transparent))
+                    ))
+                    Box(Modifier.size(92.dp).align(Alignment.CenterStart).offset(x = 38.dp, y = 28.dp)
+                        .background(Color(0xFF34244F), RoundedCornerShape(48.dp)))
+                    Box(Modifier.fillMaxWidth(0.82f).height(125.dp).align(Alignment.BottomEnd)
+                        .offset(x = 28.dp, y = 12.dp).background(Color(0xFF49366E), RoundedCornerShape(topStart = 100.dp)))
+                    Box(Modifier.fillMaxWidth(0.72f).height(70.dp).align(Alignment.BottomStart)
+                        .offset(x = (-24).dp, y = 24.dp).background(Color(0xFF263F70), RoundedCornerShape(topEnd = 100.dp)))
+                    if (activeTrack == null) {
+                        Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.align(Alignment.Center).size(76.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(22.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                    Text(activeTrack?.artist ?: "Pilih lagu dari pustaka", color = Color(0xFF9EADBC), fontSize = 17.sp, maxLines = 1)
+                }
+                IconButton(onClick = { if (activeIndex in tracks.indices) onFavorite(activeIndex) }) {
+                    Icon(if (activeTrack?.isFavorite == true) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        "Favorit", tint = if (activeTrack?.isFavorite == true) Color(0xFFFF8DAB) else Color.LightGray,
+                        modifier = Modifier.size(30.dp))
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Slider(
+                value = if (duration > 0) sliderNow.coerceIn(0f, duration.toFloat()) else 0f,
+                onValueChange = { sliderNow = it },
+                onValueChangeFinished = { onSeek(sliderNow.toLong()) },
+                valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFFB9EDFF), activeTrackColor = Color(0xFFB9EDFF),
+                    inactiveTrackColor = Color(0xFF425363)
+                )
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(timeLabel(position), color = Color(0xFF9EADBC), fontSize = 12.sp)
+                Text(timeLabel(duration), color = Color(0xFF9EADBC), fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = { shuffleEnabled = !shuffleEnabled }) {
+                        Icon(Icons.Default.Shuffle, "Acak", tint = if (shuffleEnabled) Ice else Color.Gray, modifier = Modifier.size(27.dp))
+                    }
+                    Text("Acak", color = Color.Gray, fontSize = 11.sp)
+                }
+                IconButton(onClick = onPrevious, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.SkipPrevious, "Sebelumnya", tint = Color.White, modifier = Modifier.size(34.dp))
+                }
+                FilledIconButton(onClick = onPlayPause, modifier = Modifier.size(76.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFFE2F7FF), contentColor = Color(0xFF168AC1))) {
+                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Putar/Jeda", modifier = Modifier.size(42.dp))
+                }
+                IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.SkipNext, "Berikutnya", tint = Color.White, modifier = Modifier.size(34.dp))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = { repeatEnabled = !repeatEnabled }) {
+                        Icon(Icons.Default.Repeat, "Ulang", tint = if (repeatEnabled) Ice else Color.Gray, modifier = Modifier.size(27.dp))
+                    }
+                    Text("Ulang", color = Color.Gray, fontSize = 11.sp)
+                }
+            }
+            Spacer(Modifier.weight(1f, fill = true))
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onShowLyricsControls(true) }) {
+                    Icon(Icons.Default.Lyrics, "Lirik dan tempo", tint = Color(0xFF9EADBC), modifier = Modifier.size(28.dp))
+                }
+                IconButton(onClick = { showLibrary = true }) {
+                    Icon(Icons.Default.QueueMusic, "Antrean dan pustaka", tint = Color(0xFF9EADBC), modifier = Modifier.size(28.dp))
+                }
+                IconButton(onClick = { onShowAudioOutputSettings(true) }) {
+                    Icon(Icons.Default.VolumeUp, "Pengaturan audio", tint = Color(0xFF9EADBC), modifier = Modifier.size(28.dp))
+                }
+            }
+        }
+    }
