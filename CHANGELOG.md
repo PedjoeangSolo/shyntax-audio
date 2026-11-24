@@ -1,3 +1,15 @@
+## v1.6.0 — Poweramp-Inspired Player & Library
+- Reworked Now Playing hierarchy around larger square album artwork, compact source/output information, track metadata, seek bar, A–B repeat and prominent transport controls.
+- Reworked the Library into a denser music-player layout with compact song rows and a two-column album/artist browser.
+- Added embedded album artwork thumbnails to album cards and song rows, loaded off the main thread.
+- Retained the existing playback service, Media3 FFmpeg ALAC decoder, DSP, EQ, resampler, lyrics and library persistence paths.
+- Increased app version to 1.6.0 (versionCode 20).
+
+### Validation
+- CI build and APK packaging must pass.
+- Device regression testing is required for album-art loading, screen-height layouts, playback controls, library search/favorites and ALAC 96 kHz.
+- Visual similarity is based on layout conventions and interaction patterns, not copied Poweramp assets or branding.
+
 ## v1.5.0 — Responsive Hi-Fi Player Redesign
 - Refined the Now Playing screen with screen-height-aware album artwork sizing and compact spacing for shorter phone displays.
 - Expanded direct access to Equalizer, DSP, Visualizer, Analyzer, Lyrics, and Audio Output from the player.

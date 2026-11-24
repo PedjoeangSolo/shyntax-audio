@@ -1,6 +1,11 @@
-# SHYNTAX AUDIO — v1.4.0
+# SHYNTAX AUDIO — v1.6.0
 
 Native Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
+
+## v1.6.0 interface update
+- Poweramp-inspired Now Playing hierarchy with prominent square artwork and focused transport controls.
+- Compact song rows and two-column album/artist browsing with embedded artwork thumbnails.
+- SHYNTAX retains its own dark navy and ice-blue identity; playback and FFmpeg ALAC decoding remain unchanged.
 
 ## Implemented
 - Automatic music-library scan through Android MediaStore after the user grants audio-library permission; manual SAF import remains available.

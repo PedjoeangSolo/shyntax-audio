@@ -1,7 +1,7 @@
 - [x] Integrate Media3 FFmpeg decoder with ALAC enabled in CI (v1.3.2; device playback verification pending).
 # SHYNTAX AUDIO — Product Roadmap
 
-Update v1.5.0: tata letak Now Playing responsif terhadap tinggi layar dan mini-player pustaka kini memiliki kontrol Shuffle/Repeat. Jalur playback dan decoder FFmpeg tidak diubah.
+Update v1.6.0: player dan pustaka ditata ulang mengikuti pola aplikasi pemutar musik Hi-Fi seperti Poweramp—sampul album dominan, kontrol transport yang jelas, grid album/artis, dan daftar lagu padat. Identitas visual SHYNTAX dipertahankan; decoder FFmpeg dan jalur playback tidak diubah.
 
 
 Roadmap ini menjadi daftar kerja resmi. Status "planned" berarti belum diimplementasikan; status "implemented" tetap memerlukan pengujian perangkat sebelum dianggap tervalidasi.

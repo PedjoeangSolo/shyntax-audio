@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.Image
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -748,9 +749,9 @@ private fun AudioHome(
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
     val compactLayout = screenHeightDp < 760
     val artworkFraction = when {
-        screenHeightDp < 700 -> 0.56f
-        screenHeightDp < 800 -> 0.64f
-        else -> 0.72f
+        screenHeightDp < 700 -> 0.60f
+        screenHeightDp < 800 -> 0.70f
+        else -> 0.80f
     }
     var showLibrary by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf("Lagu") }
@@ -817,8 +818,8 @@ private fun AudioHome(
     }
     if (showLibrary) {
     Column(Modifier.fillMaxSize().background(
-        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF111D2D), Background))
-    ).padding(18.dp)) {
+        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF101B2B), Color(0xFF080C14), Background))
+    ).padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -827,7 +828,7 @@ private fun AudioHome(
                     Text("SHYNTAX", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
                     Text(" AUDIO", color = Ice, fontSize = 23.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                 }
-                Text("MUSIC LIBRARY  •  v${BuildConfig.VERSION_NAME}", color = MutedText, fontSize = 9.sp, letterSpacing = 1.1.sp)
+                Text("MUSIC LIBRARY", color = MutedText, fontSize = 10.sp, letterSpacing = 1.6.sp)
             }
             IconButton(onClick = { showLibrary = false }) {
                 Icon(Icons.Default.Album, "Kembali ke Now Playing", tint = Ice)
@@ -838,8 +839,8 @@ private fun AudioHome(
             IconButton(onClick = { onShowBackupDialog(true) }) {
                 Icon(Icons.Default.Settings, "Backup dan pengaturan", tint = Ice)
             }
-            Surface(color = Panel, shape = RoundedCornerShape(14.dp)) {
-                Text("v${BuildConfig.VERSION_NAME}", color = Ice, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Surface(color = PanelRaised, shape = RoundedCornerShape(50)) {
+                Text("v${BuildConfig.VERSION_NAME}", color = Ice, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -938,20 +939,31 @@ private fun AudioHome(
             }
         } else if (tab in listOf("Album", "Artis") && groupFilter == null && !favoritesOnly) {
             val groups = if (tab == "Album") tracks.groupBy { it.album } else tracks.groupBy { it.artist }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(groups.keys.sorted(), key = { it }) { name ->
-                    val groupTracks = groups[name].orEmpty()
-                    Surface(color = Panel, shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth().clickable { groupFilter = name }) {
-                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(if (tab == "Album") Icons.Default.Album else Icons.Default.Person, null, tint = Ice)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(name, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                Text("${groupTracks.size} lagu", color = Color.LightGray, fontSize = 12.sp)
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(groups.keys.sorted().chunked(2)) { rowNames ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowNames.forEach { name ->
+                            val groupTracks = groups[name].orEmpty()
+                            Surface(color = Color(0xFF121E2D), shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f).clickable { groupFilter = name }) {
+                                Column(Modifier.padding(10.dp)) {
+                                    val coverUri = groupTracks.firstOrNull()?.uri
+                                    if (coverUri != null && tab == "Album") {
+                                        TrackArtwork(coverUri, Modifier.fillMaxWidth().aspectRatio(1f))
+                                    } else {
+                                        Box(Modifier.fillMaxWidth().aspectRatio(1f).background(
+                                            androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF243D57), Color(0xFF172638), Color(0xFF263B55))),
+                                            RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Person, null, tint = Ice, modifier = Modifier.size(48.dp))
+                                        }
+                                    }
+                                    Spacer(Modifier.height(9.dp))
+                                    Text(name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text("${groupTracks.size} lagu", color = MutedText, fontSize = 11.sp)
+                                }
                             }
-                            Icon(Icons.Default.ChevronRight, null, tint = Ice)
                         }
+                        if (rowNames.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
@@ -962,22 +974,18 @@ private fun AudioHome(
                 }
                 items(visibleTracks, key = { it.value.uri.toString() }) { indexed ->
                     val track = indexed.value
-                    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.MusicNote, null, tint = Ice)
-                            Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f).clickable { onSelect(indexed.index) }.padding(vertical = 7.dp)) {
+                    Surface(color = Color(0xFF111C2A), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TrackArtwork(track.uri, Modifier.size(48.dp))
+                            Spacer(Modifier.width(11.dp))
+                            Column(Modifier.weight(1f).clickable { onSelect(indexed.index) }.padding(vertical = 5.dp)) {
                                 Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                Text("${track.artist} • ${track.album}", color = Color.LightGray, fontSize = 11.sp, maxLines = 1)
+                                Text("${track.artist}  •  ${track.album}", color = MutedText, fontSize = 11.sp, maxLines = 1)
                             }
                             IconButton(onClick = { onFavorite(indexed.index) }) {
-                                Icon(if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                    "Favorit", tint = if (track.isFavorite) Ice else Color.LightGray)
+                                Icon(if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Favorit", tint = if (track.isFavorite) Ice else Color.LightGray)
                             }
-                            IconButton(onClick = { onSelect(indexed.index) }) {
-                                Icon(Icons.Default.PlayArrow, "Putar", tint = Ice)
-                            }
+                            IconButton(onClick = { onSelect(indexed.index) }) { Icon(Icons.Default.PlayArrow, "Putar", tint = Ice) }
                         }
                     }
                 }
@@ -986,12 +994,12 @@ private fun AudioHome(
                 }
             }
         }
-        Surface(color = PanelRaised, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Surface(color = Color(0xFF172435), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("NOW PLAYING", color = Ice, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                        Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("SEDANG DIPUTAR", color = MutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
                     }
                     FilledIconButton(onClick = onPlayPause) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Putar/Jeda")
@@ -1046,7 +1054,7 @@ private fun AudioHome(
                         Text("SHYNTAX", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.8.sp)
                         Text(" AUDIO", color = Ice, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
                     }
-                    Text("HI-FI MUSIC PLAYER  •  v${BuildConfig.VERSION_NAME}", color = MutedText, fontSize = 9.sp, letterSpacing = 1.1.sp)
+                    Text("NOW PLAYING  •  HI-RES AUDIO", color = MutedText, fontSize = 9.sp, letterSpacing = 1.3.sp)
                 }
                 Surface(color = PanelRaised, shape = RoundedCornerShape(50)) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1067,8 +1075,8 @@ private fun AudioHome(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Surface(color = Panel.copy(alpha = 0.96f), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color(0xFF101A28), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.HighQuality, contentDescription = "Format sumber", tint = Ice, modifier = Modifier.size(23.dp))
                     Column(Modifier.weight(1f)) {
                         Text("FORMAT SUMBER", color = MutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
@@ -1082,10 +1090,10 @@ private fun AudioHome(
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(artworkFraction).aspectRatio(1f),
-                shape = RoundedCornerShape(28.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = Color(0xFF342D5C),
                 shadowElevation = 22.dp
             ) {
@@ -1112,7 +1120,7 @@ private fun AudioHome(
                     }
                 }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White, fontSize = if (compactLayout) 18.sp else 21.sp, fontWeight = FontWeight.Bold, maxLines = 1)
@@ -1149,7 +1157,7 @@ private fun AudioHome(
                 Text(if (abRepeatStart != null && abRepeatEnd != null) "A–B REPEAT ON" else "A–B REPEAT", color = if (abRepeatEnd != null) Ice else MutedText, fontSize = 9.sp, modifier = Modifier.weight(1f))
                 TextButton(onClick = onClearAbRepeat, enabled = abRepeatStart != null || abRepeatEnd != null, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)) { Text("Hapus", color = Color(0xFFFF9E9E), fontSize = 10.sp) }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(onClick = onToggleShuffle) {
@@ -1176,7 +1184,7 @@ private fun AudioHome(
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
                     Triple("EQ", Icons.Default.Tune) { onShowEqualizer(true) },
                     Triple("DSP", Icons.Default.GraphicEq) { onShowDsp(true) },
@@ -1186,13 +1194,13 @@ private fun AudioHome(
                     Triple("OUTPUT", Icons.Default.Headphones) { onShowAudioOutputSettings(true) }
                 ).forEach { item ->
                     Surface(
-                        modifier = Modifier.weight(1f).clickable { item.third() },
-                        color = Panel, shape = RoundedCornerShape(15.dp)
+                        modifier = Modifier.width(66.dp).clickable { item.third() },
+                        color = Panel, shape = RoundedCornerShape(12.dp)
                     ) {
-                        Column(Modifier.padding(vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(Modifier.padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(item.second, contentDescription = item.first, tint = Ice, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.height(3.dp))
-                            Text(item.first, color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(item.first, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
                 }
@@ -1209,6 +1217,42 @@ private fun AudioHome(
     }
 }
 
+
+
+@Composable
+private fun TrackArtwork(uri: Uri, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(initialValue = null, key1 = uri) {
+        value = withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                retriever.embeddedPicture?.let { bytes ->
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    val sampleSize = maxOf(1, maxOf(bounds.outWidth / 512, bounds.outHeight / 512))
+                    val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                }
+            } catch (_: Exception) {
+                null
+            } finally {
+                runCatching { retriever.release() }
+            }
+        }
+    }
+    Surface(modifier = modifier, color = Color(0xFF1C3045), shape = RoundedCornerShape(9.dp)) {
+        if (bitmap != null) {
+            Image(bitmap!!.asImageBitmap(), contentDescription = "Sampul album", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Box(Modifier.fillMaxSize().background(
+                androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF24435B), Color(0xFF182638)))
+            ), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.MusicNote, null, tint = Ice, modifier = Modifier.size(25.dp))
+            }
+        }
+    }
+}
 
 @Composable
 private fun ShyntaxBottomBar(
