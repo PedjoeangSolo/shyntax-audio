@@ -1,4 +1,4 @@
-# SHYNTAX AUDIO — v1.0.0
+# SHYNTAX AUDIO — v1.4.0
 
 Native Android music player built with Kotlin, Jetpack Compose and AndroidX Media3.
 

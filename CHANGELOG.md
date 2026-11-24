@@ -1,3 +1,15 @@
+## v1.4.0 — Hi-Fi UI Refresh
+- Introduced a refined dark navy and ice-cyan visual system for a more premium Hi-Fi identity.
+- Redesigned the Now Playing header, source/output summary, album-art presentation, track metadata, and quick audio controls.
+- Refreshed Library branding, album/song surfaces, and compact Now Playing panel.
+- Preserved existing playback, queue navigation, Shuffle/Repeat, A–B Repeat, lyrics, EQ, DSP, visualizer, analyzer, backup, and output settings interactions.
+- Bumped app version to 1.4.0 (versionCode 18).
+
+### Testing notes
+- Verify Now Playing and Library on a physical device, including short screens, long titles, and missing artwork.
+- Regression-test playback controls, Library search/filter/sorting, lyrics, EQ/DSP, visualizer, analyzer, and audio settings.
+- CI success confirms compilation and APK packaging only; it does not prove device behavior.
+
 ## v1.3.2
 - Add the Media3 FFmpeg software decoder with ALAC support for files that the Android platform decoder cannot play.
 - Keep the platform decoder available as fallback for other supported formats.
