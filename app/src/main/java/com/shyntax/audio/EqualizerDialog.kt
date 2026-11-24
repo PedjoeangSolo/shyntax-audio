@@ -62,7 +62,7 @@ fun EqualizerDialog(
             Text("Precision sound control",color=eqMuted,fontSize=11.sp)
         }},
         text={
-            Column(Modifier.fillMaxWidth().heightIn(max=680.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
+            Column(Modifier.fillMaxWidth().heightIn(max=680.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(9.dp)){
                 Surface(color=eqPanel,shape=RoundedCornerShape(17.dp),modifier=Modifier.fillMaxWidth()){
                     Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){
                         Column(Modifier.weight(1f)){
