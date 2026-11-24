@@ -1099,26 +1099,31 @@ private fun AudioHome(
                     }
                 }
                 Spacer(Modifier.height(9.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    @Composable
-                    fun Shortcut(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, active: Boolean = false, action: () -> Unit) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    listOf(
+                        Triple("VISUAL", Icons.Default.Waves) { onShowVisualizer(true) },
+                        Triple("EQUALIZER", Icons.Default.Tune) { onShowEqualizer(true) },
+                        Triple("REPEAT", if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat) { onCycleRepeat() },
+                        Triple("SHUFFLE", Icons.Default.Shuffle) { onToggleShuffle() }
+                    ).forEachIndexed { index, item ->
+                        val active = when (index) {
+                            2 -> repeatMode != Player.REPEAT_MODE_OFF
+                            3 -> shuffleEnabled
+                            else -> false
+                        }
                         Surface(
-                            modifier = Modifier.weight(1f).clickable { action() },
+                            modifier = Modifier.weight(1f).clickable { item.third() },
                             color = if (active) Color(0xFF24445B) else Color(0xAA172333),
                             shape = RoundedCornerShape(50),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))
                         ) {
-                            Row(Modifier.padding(horizontal = 7.dp, vertical = 9.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                                Icon(icon, null, tint = if (active) Ice else Color.LightGray, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text(label, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Row(Modifier.padding(horizontal = 4.dp, vertical = 9.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                                Icon(item.second, null, tint = if (active) Ice else Color.LightGray, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(3.dp))
+                                Text(item.first, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                             }
                         }
                     }
-                    Shortcut("VISUAL", Icons.Default.Waves) { onShowVisualizer(true) }
-                    Shortcut("EQUALIZER", Icons.Default.Tune) { onShowEqualizer(true) }
-                    Shortcut("REPEAT", if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat, repeatMode != Player.REPEAT_MODE_OFF) { onCycleRepeat() }
-                    Shortcut("SHUFFLE", Icons.Default.Shuffle, shuffleEnabled) { onToggleShuffle() }
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth().height(42.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
