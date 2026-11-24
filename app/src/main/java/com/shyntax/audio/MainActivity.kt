@@ -57,9 +57,11 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 
-private val Ice = Color(0xFF69D8FF)
-private val Background = Color(0xFF080D14)
-private val Panel = Color(0xFF111C29)
+private val Ice = Color(0xFF8BE9FF)
+private val Background = Color(0xFF070A12)
+private val Panel = Color(0xFF121827)
+private val PanelRaised = Color(0xFF1A2335)
+private val MutedText = Color(0xFF9AAAC0)
 private const val PREFS = "shyntax_library"
 private const val TRACK_URIS = "track_uris"
 
@@ -915,16 +917,24 @@ private fun AudioHome(
         Column(
             Modifier.fillMaxSize().background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(Color(0xFF10283D), Color(0xFF0B1725), Color(0xFF080D14))
+                    listOf(Color(0xFF18233A), Color(0xFF0D1321), Background)
                 )
             ).padding(horizontal = 22.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { showLibrary = true }) {
-                    Icon(Icons.Default.ArrowBack, "Buka pustaka", tint = Color.White)
+                Column(Modifier.weight(1f)) {
+                    Text("SHYNTAX", color = Ice, fontSize = 12.sp, fontWeight = FontWeight.Black, letterSpacing = 3.sp)
+                    Text("AUDIO", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+                    Text("HI-FI MUSIC EXPERIENCE", color = MutedText, fontSize = 9.sp, letterSpacing = 1.8.sp)
                 }
-                Text("Now Playing", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Surface(color = PanelRaised, shape = RoundedCornerShape(50)) {
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(7.dp).background(if (playing) Color(0xFF5BE0A0) else MutedText, RoundedCornerShape(50)))
+                        Spacer(Modifier.width(7.dp))
+                        Text(if (playing) "PLAYING" else "READY", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Box {
                     var menuExpanded by remember { mutableStateOf(false) }
                     IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "Menu", tint = Color.White) }
@@ -937,8 +947,24 @@ private fun AudioHome(
                 }
             }
             Spacer(Modifier.height(12.dp))
+            Surface(color = Panel.copy(alpha = 0.92f), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("SOURCE FORMAT", color = MutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                        Text(
+                            audioFileInfo.sampleRate?.let { "${it / 1000.0} kHz" } ?: "Belum terdeteksi",
+                            color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("AUDIO OUTPUT", color = MutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                        Text(audioOutputs.firstOrNull()?.name ?: "Android AudioTrack", color = Ice, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
             Surface(
-                modifier = Modifier.fillMaxWidth().weight(1f, fill = false).aspectRatio(1f),
+                modifier = Modifier.fillMaxWidth(0.86f).weight(1f, fill = false).aspectRatio(1f),
                 shape = RoundedCornerShape(28.dp),
                 color = Color(0xFF342D5C),
                 shadowElevation = 18.dp
@@ -1016,6 +1042,26 @@ private fun AudioHome(
                         Icon(Icons.Default.Repeat, "Ulang", tint = if (repeatEnabled) Ice else Color.Gray, modifier = Modifier.size(27.dp))
                     }
                     Text("Ulang", color = Color.Gray, fontSize = 11.sp)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    Triple("EQ", Icons.Default.Tune) { onShowEqualizer(true) },
+                    Triple("DSP", Icons.Default.GraphicEq) { onShowDsp(true) },
+                    Triple("VISUAL", Icons.Default.Waves) { onShowVisualizer(true) },
+                    Triple("ANALYZER", Icons.Default.Analytics) { onShowHiResDialog(true); onRefreshAudioInfo() }
+                ).forEach { item ->
+                    Surface(
+                        modifier = Modifier.weight(1f).clickable { item.third() },
+                        color = PanelRaised, shape = RoundedCornerShape(13.dp)
+                    ) {
+                        Column(Modifier.padding(vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(item.second, contentDescription = item.first, tint = Ice, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.height(3.dp))
+                            Text(item.first, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
             Spacer(Modifier.weight(1f, fill = true))
