@@ -10,8 +10,8 @@ android {
         applicationId = "com.shyntax.audio"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.3.1"
+        versionCode = 17
+        versionName = "1.3.2"
     }
     signingConfigs {
         create("release") {
@@ -47,6 +47,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation(project(":media3-lib-decoder-ffmpeg"))
     implementation("androidx.media3:media3-session:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
