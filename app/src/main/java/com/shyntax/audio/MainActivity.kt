@@ -194,6 +194,7 @@ class MainActivity : ComponentActivity() {
                 }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     currentTrackIndex = controller?.currentMediaItemIndex ?: 0
+                    AudioAnalysisState.reset()
                     loadLyricsForCurrentTrack()
                     tracks.getOrNull(currentTrackIndex)?.let { track ->
                         refreshAudioInfo(track.uri)
