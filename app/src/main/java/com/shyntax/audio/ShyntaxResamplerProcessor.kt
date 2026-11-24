@@ -104,17 +104,16 @@ class ShyntaxResamplerProcessor(context: Context) : BaseAudioProcessor() {
             val sourcePosition = outFrame.toDouble() * inputRate / outputRate
             val base = floor(sourcePosition).toInt().coerceIn(0, lastFrame)
             val fraction = (sourcePosition - base).toFloat()
-            val previous = max(0, base - 1)
             val next = min(lastFrame, base + 1)
-            val nextNext = min(lastFrame, base + 2)
             for (channel in 0 until channels) {
-                fun sample(frame: Int): Float = samples.get(frame * channels + channel).toFloat()
-                val a = sample(previous)
-                val b = sample(base)
-                val c = sample(next)
-                val d = sample(nextNext)
                 val value = when (quality) {
-                    "Cepat" -> b
+                    // Linear interpolation is substantially less CPU-intensive than sinc
+                    // while avoiding the sample-and-hold distortion of nearest-neighbour.
+                    "Cepat" -> {
+                        val current = samples.get(base * channels + channel).toFloat()
+                        val following = samples.get(next * channels + channel).toFloat()
+                        current + (following - current) * fraction
+                    }
                     "Tinggi" -> sincInterpolate(
                         samples, frameCount, channels, channel, sourcePosition,
                         min(1.0, outputRate.toDouble() / inputRate.toDouble()) * 0.94, 12
