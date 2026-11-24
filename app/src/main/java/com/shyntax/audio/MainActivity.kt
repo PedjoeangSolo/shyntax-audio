@@ -8,6 +8,13 @@ import android.media.MediaMetadataRetriever
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.AudioManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import org.json.JSONObject
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -37,6 +44,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -103,6 +113,7 @@ class MainActivity : ComponentActivity() {
     private var showAudioOutputSettings by mutableStateOf(false)
     private var backupStatus by mutableStateOf("")
     private var currentAudioInfo by mutableStateOf(AudioFileInfo())
+    private var currentArtwork by mutableStateOf<Bitmap?>(null)
     private var audioOutputs by mutableStateOf<List<AudioOutputInfo>>(emptyList())
     private var scanStatus by mutableStateOf("Menyiapkan pemindaian musik…")
     private val musicPermissionLauncher = registerForActivityResult(RequestPermission()) { granted ->
@@ -235,7 +246,7 @@ class MainActivity : ComponentActivity() {
                     showDsp = showDsp, onShowDsp = { showDsp = it },
                     showVisualizer = showVisualizer, onShowVisualizer = { showVisualizer = it },
                     showHiResDialog = showHiResDialog, onShowHiResDialog = { showHiResDialog = it },
-                    audioFileInfo = currentAudioInfo, audioOutputs = audioOutputs,
+                    audioFileInfo = currentAudioInfo, audioOutputs = audioOutputs, artwork = currentArtwork,
                     showBackupDialog = showBackupDialog, onShowBackupDialog = { showBackupDialog = it }, backupStatus = backupStatus,
                     showAudioOutputSettings = showAudioOutputSettings, onShowAudioOutputSettings = { showAudioOutputSettings = it },
                     onExportBackup = { backupExportPicker.launch("SHYNTAX-AUDIO-backup.zip") },
@@ -487,6 +498,62 @@ class MainActivity : ComponentActivity() {
             .apply()
     }
 
+    private fun loadArtwork(uri: Uri, album: String, artist: String) {
+        currentArtwork = null
+        lifecycleScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                val key = (artist + "|" + album).hashCode().toString()
+                val folder = File(cacheDir, "album_art").apply { mkdirs() }
+                val cached = File(folder, "$key.jpg")
+                if (cached.exists()) BitmapFactory.decodeFile(cached.absolutePath)?.let { return@withContext it }
+
+                val embedded = runCatching {
+                    MediaMetadataRetriever().let { retriever ->
+                        try {
+                            retriever.setDataSource(this@MainActivity, uri)
+                            retriever.embeddedPicture?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                        } finally { retriever.release() }
+                    }
+                }.getOrNull()
+                if (embedded != null) {
+                    runCatching { cached.outputStream().use { embedded.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
+                    return@withContext embedded
+                }
+
+                if (album.isBlank() || album == "Album tidak diketahui" ||
+                    artist.isBlank() || artist == "Artis tidak diketahui") return@withContext null
+                runCatching {
+                    val query = "release:" + "\"" + album + "\"" + " AND artist:" + "\"" + artist + "\""
+                    val encoded = URLEncoder.encode(query, "UTF-8")
+                    val search = URL("https://musicbrainz.org/ws/2/release/?query=$encoded&fmt=json&limit=1")
+                    val connection = (search.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 7000
+                        readTimeout = 7000
+                        setRequestProperty("User-Agent", "SHYNTAX-AUDIO/1.0 (Android music player)")
+                        setRequestProperty("Accept", "application/json")
+                    }
+                    val releaseId = try {
+                        val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                        json.optJSONArray("releases")?.optJSONObject(0)?.optString("id")?.takeIf { it.isNotBlank() }
+                    } finally { connection.disconnect() }
+                    if (releaseId == null) return@runCatching null
+                    val artUrl = URL("https://coverartarchive.org/release/$releaseId/front-500")
+                    val artConnection = (artUrl.openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 7000
+                        readTimeout = 10000
+                        instanceFollowRedirects = true
+                        setRequestProperty("User-Agent", "SHYNTAX-AUDIO/1.0 (Android music player)")
+                    }
+                    try { artConnection.inputStream.use { BitmapFactory.decodeStream(it) } }
+                    finally { artConnection.disconnect() }
+                }.getOrNull()?.also { image ->
+                    runCatching { cached.outputStream().use { image.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
+                }
+            }
+            currentArtwork = bitmap
+        }
+    }
+
     private fun readTrack(uri: Uri): Track {
         val fileName = runCatching {
             contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
@@ -529,6 +596,7 @@ class MainActivity : ComponentActivity() {
         if (index !in tracks.indices) return
         currentTrackIndex = index
         loadLyricsForCurrentTrack()
+        tracks[index].let { loadArtwork(it.uri, it.album, it.artist) }
         val items = tracks.map { track ->
             MediaItem.Builder().setUri(track.uri)
                 .setMediaMetadata(MediaMetadata.Builder()
@@ -563,7 +631,7 @@ private fun AudioHome(
     showDsp: Boolean, onShowDsp: (Boolean) -> Unit,
     showVisualizer: Boolean, onShowVisualizer: (Boolean) -> Unit,
     showHiResDialog: Boolean, onShowHiResDialog: (Boolean) -> Unit,
-    audioFileInfo: AudioFileInfo, audioOutputs: List<AudioOutputInfo>, onRefreshAudioInfo: () -> Unit,
+    audioFileInfo: AudioFileInfo, audioOutputs: List<AudioOutputInfo>, artwork: Bitmap?, onRefreshAudioInfo: () -> Unit,
     showBackupDialog: Boolean, onShowBackupDialog: (Boolean) -> Unit, backupStatus: String,
     showAudioOutputSettings: Boolean, onShowAudioOutputSettings: (Boolean) -> Unit,
     onExportBackup: () -> Unit, onImportBackup: () -> Unit,
@@ -857,23 +925,24 @@ private fun AudioHome(
                 color = Color(0xFF342D5C),
                 shadowElevation = 18.dp
             ) {
-                Box(
-                    Modifier.fillMaxSize().background(
+                if (artwork != null) {
+                    Image(artwork.asImageBitmap(), contentDescription = "Sampul album",
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    Box(Modifier.fillMaxSize().background(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
                             listOf(Color(0xFF573B73), Color(0xFFFF855D), Color(0xFF294E7C))
                         )
-                    )
-                ) {
-                    Box(Modifier.fillMaxWidth().height(110.dp).align(Alignment.TopCenter).background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x665D3C78), Color.Transparent))
-                    ))
-                    Box(Modifier.size(92.dp).align(Alignment.CenterStart).offset(x = 38.dp, y = 28.dp)
-                        .background(Color(0xFF34244F), RoundedCornerShape(48.dp)))
-                    Box(Modifier.fillMaxWidth(0.82f).height(125.dp).align(Alignment.BottomEnd)
-                        .offset(x = 28.dp, y = 12.dp).background(Color(0xFF49366E), RoundedCornerShape(topStart = 100.dp)))
-                    Box(Modifier.fillMaxWidth(0.72f).height(70.dp).align(Alignment.BottomStart)
-                        .offset(x = (-24).dp, y = 24.dp).background(Color(0xFF263F70), RoundedCornerShape(topEnd = 100.dp)))
-                    if (activeTrack == null) {
+                    )) {
+                        Box(Modifier.fillMaxWidth().height(110.dp).align(Alignment.TopCenter).background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x665D3C78), Color.Transparent))
+                        ))
+                        Box(Modifier.size(92.dp).align(Alignment.CenterStart).offset(x = 38.dp, y = 28.dp)
+                            .background(Color(0xFF34244F), RoundedCornerShape(48.dp)))
+                        Box(Modifier.fillMaxWidth(0.82f).height(125.dp).align(Alignment.BottomEnd)
+                            .offset(x = 28.dp, y = 12.dp).background(Color(0xFF49366E), RoundedCornerShape(topStart = 100.dp)))
+                        Box(Modifier.fillMaxWidth(0.72f).height(70.dp).align(Alignment.BottomStart)
+                            .offset(x = (-24).dp, y = 24.dp).background(Color(0xFF263F70), RoundedCornerShape(topEnd = 100.dp)))
                         Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(alpha = 0.85f),
                             modifier = Modifier.align(Alignment.Center).size(76.dp))
                     }
