@@ -80,6 +80,7 @@ data class Track(
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private val tracks = mutableStateListOf<Track>()
+    private val recentTrackUris = mutableStateListOf<String>()
     private var currentTitle by mutableStateOf("Belum ada lagu")
     private var playing by mutableStateOf(false)
     private var position by mutableLongStateOf(0L)
@@ -172,6 +173,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         restoreLibrary()
+        restorePlayHistory()
         val outputManager = getSystemService(AUDIO_SERVICE) as AudioManager
         outputDeviceCallback = object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
@@ -211,6 +213,7 @@ class MainActivity : ComponentActivity() {
                 }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     currentTrackIndex = controller?.currentMediaItemIndex ?: 0
+                    tracks.getOrNull(currentTrackIndex)?.let { recordPlayedTrack(it.uri) }
                     AudioAnalysisState.reset()
                     loadLyricsForCurrentTrack()
                     tracks.getOrNull(currentTrackIndex)?.let { track ->
@@ -240,7 +243,7 @@ class MainActivity : ComponentActivity() {
                 onBackground = Color.White, onSurface = Color.White
             )) {
                 AudioHome(
-                    tracks = tracks.toList(), title = currentTitle, playing = playing,
+                    tracks = tracks.toList(), recentTrackUris = recentTrackUris.toList(), title = currentTitle, playing = playing,
                     position = position, duration = duration,
                     onImport = { picker.launch(arrayOf("audio/*")) },
                     scanStatus = scanStatus,
@@ -626,10 +629,33 @@ class MainActivity : ComponentActivity() {
             .putStringSet(TRACK_URIS, tracks.map { it.uri.toString() }.toSet()).apply()
     }
 
+    private fun restorePlayHistory() {
+        val raw = getSharedPreferences(PREFS, MODE_PRIVATE).getString("recent_track_uris", "[]") ?: "[]"
+        runCatching {
+            val array = org.json.JSONArray(raw)
+            for (i in 0 until array.length()) {
+                val uri = array.optString(i).takeIf { it.isNotBlank() } ?: continue
+                if (recentTrackUris.size < 50 && uri !in recentTrackUris) recentTrackUris.add(uri)
+            }
+        }
+    }
+
+    private fun recordPlayedTrack(uri: Uri) {
+        val value = uri.toString()
+        recentTrackUris.remove(value)
+        recentTrackUris.add(0, value)
+        while (recentTrackUris.size > 50) recentTrackUris.removeAt(recentTrackUris.lastIndex)
+        val array = org.json.JSONArray()
+        recentTrackUris.forEach { array.put(it) }
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putString("recent_track_uris", array.toString()).apply()
+    }
+
     private fun playTrack(index: Int) {
         val c = controller ?: return
         if (index !in tracks.indices) return
         currentTrackIndex = index
+        recordPlayedTrack(tracks[index].uri)
         loadLyricsForCurrentTrack()
         tracks[index].let { loadArtwork(it.uri, it.album, it.artist) }
         val items = tracks.map { track ->
@@ -658,7 +684,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AudioHome(
-    tracks: List<Track>, title: String, playing: Boolean, position: Long, duration: Long,
+    tracks: List<Track>, recentTrackUris: List<String>, title: String, playing: Boolean, position: Long, duration: Long,
     onImport: () -> Unit, scanStatus: String, onScan: () -> Unit,
     onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
@@ -696,6 +722,7 @@ private fun AudioHome(
 
     val visibleTracks = tracks.withIndex().filter { (_, track) ->
         (!favoritesOnly || track.isFavorite) &&
+            (tab != "Riwayat" || track.uri.toString() in recentTrackUris) &&
             (groupFilter == null || if (tab == "Album") track.album == groupFilter else if (tab == "Artis") track.artist == groupFilter else true) &&
             (query.isBlank() || track.title.contains(query, true) || track.artist.contains(query, true) || track.album.contains(query, true))
     }.let { list ->
@@ -703,6 +730,7 @@ private fun AudioHome(
             "Judul Z–A" -> list.sortedByDescending { it.value.title.lowercase() }
             "Artis" -> list.sortedBy { it.value.artist.lowercase() }
             "Album" -> list.sortedBy { it.value.album.lowercase() }
+            "Riwayat" -> list.sortedBy { recentTrackUris.indexOf(it.value.uri.toString()).let { index -> if (index < 0) Int.MAX_VALUE else index } }
             else -> list.sortedBy { it.value.title.lowercase() }
         }
     }
@@ -794,7 +822,7 @@ private fun AudioHome(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                listOf("Lagu", "Album", "Artis").forEach {
+                listOf("Lagu", "Album", "Artis", "Riwayat").forEach {
                     FilterChip(selected = tab == it, onClick = { tab = it; groupFilter = null; favoritesOnly = false }, label = { Text(it) })
                 }
                 FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = !favoritesOnly; groupFilter = null },
@@ -829,6 +857,7 @@ private fun AudioHome(
             when {
                 favoritesOnly -> "LAGU FAVORIT"
                 groupFilter != null -> groupFilter!!.uppercase()
+                tab == "Riwayat" -> "TERAKHIR DIPUTAR"
                 else -> when (tab) { "Album" -> "ALBUM"; "Artis" -> "ARTIS"; else -> "SEMUA LAGU" }
             },
             color = Ice, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
@@ -845,7 +874,7 @@ private fun AudioHome(
                     Button(onClick = onImport) { Text("Pilih file audio") }
                 }
             }
-        } else if (tab != "Lagu" && groupFilter == null && !favoritesOnly) {
+        } else if (tab in listOf("Album", "Artis") && groupFilter == null && !favoritesOnly) {
             val groups = if (tab == "Album") tracks.groupBy { it.album } else tracks.groupBy { it.artist }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(groups.keys.sorted(), key = { it }) { name ->
@@ -891,7 +920,7 @@ private fun AudioHome(
                     }
                 }
                 if (visibleTracks.isEmpty()) item {
-                    Text("Tidak ada lagu yang cocok.", color = Color.LightGray, modifier = Modifier.padding(18.dp))
+                    Text(if (tab == "Riwayat") "Belum ada riwayat pemutaran." else "Tidak ada lagu yang cocok.", color = Color.LightGray, modifier = Modifier.padding(18.dp))
                 }
             }
         }
