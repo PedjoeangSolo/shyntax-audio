@@ -18,7 +18,7 @@ Roadmap ini menjadi daftar kerja resmi. Status "planned" berarti belum diimpleme
 - Embedded lyrics dan import LRC/text
 - Equalizer, DSP dasar, visualizer
 - Smart album artwork: embedded → folder → cache → MusicBrainz/Cover Art Archive
-- PCM16 resampler (Fast / Balanced / High)
+- PCM16 resampler (Fast linear / Balanced 4-tap sinc / High 12-tap sinc; per-block phase continuity and DAC output validation remain open)
 - Advanced Audio Analyzer (file metadata dan PCM16 peak/RMS/clipping)
 - Backup & restore preferences/library metadata
 
