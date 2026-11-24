@@ -44,6 +44,15 @@ jobs:
           set -euo pipefail
           MEDIA3_SOURCE_DIR="$RUNNER_TEMP/androidx-media"
           git clone --depth 1 --branch 1.5.1 https://github.com/androidx/media.git "$MEDIA3_SOURCE_DIR"
+          # The app minSdk is 26. Match the Media3 FFmpeg native target to it;
+          # API 21 can leave Android stdio symbols such as stderr unresolved.
+          cat >> "$MEDIA3_SOURCE_DIR/libraries/decoder_ffmpeg/build.gradle" <<'GRADLE'
+          android {
+              defaultConfig {
+                  minSdkVersion 26
+              }
+          }
+          GRADLE
           FFMPEG_DIR="$MEDIA3_SOURCE_DIR/libraries/decoder_ffmpeg/src/main/jni/ffmpeg"
           git clone --depth 1 --branch release/6.0 https://github.com/FFmpeg/FFmpeg.git "$FFMPEG_DIR"
           FFMPEG_MODULE_PATH="$MEDIA3_SOURCE_DIR/libraries/decoder_ffmpeg/src/main"
