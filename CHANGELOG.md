@@ -1,5 +1,18 @@
 # SHYNTAX AUDIO — Changelog
 
+## 1.3.1
+- Refined the Now Playing layout for phone screens with a more balanced album-art size and tighter spacing.
+- Reduced track title and artist text sizing to improve fit; album metadata is shown when available.
+- Improved Library filter/action row layout and added Recently Played sorting.
+- Connected Shuffle and Repeat controls to the Media3 player and fixed active-track selection by playlist index.
+- Bumped app version to 1.3.1 (versionCode 16).
+
+### Testing notes
+- Verify the Now Playing layout on small and standard phone screens, including long titles and missing album metadata.
+- Verify Library filters, sorting, Shuffle, Repeat, artwork, and playback navigation on a physical device.
+- CI success confirms compilation and APK packaging only; it does not replace device testing.
+
+
 ## 1.3.0
 - Added A–B Repeat controls to mark a start point (A) and end point (B) in the current track.
 - Playback automatically seeks back to A when the active player reaches B.
