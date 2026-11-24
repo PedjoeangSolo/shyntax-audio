@@ -749,9 +749,9 @@ private fun AudioHome(
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
     val compactLayout = screenHeightDp < 760
     val artworkFraction = when {
-        screenHeightDp < 700 -> 0.66f
-        screenHeightDp < 800 -> 0.76f
-        else -> 0.86f
+        screenHeightDp < 700 -> 0.60f
+        screenHeightDp < 800 -> 0.70f
+        else -> 0.80f
     }
     var showLibrary by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf("Lagu") }
@@ -1227,7 +1227,13 @@ private fun TrackArtwork(uri: Uri, modifier: Modifier = Modifier) {
             val retriever = MediaMetadataRetriever()
             try {
                 retriever.setDataSource(context, uri)
-                retriever.embeddedPicture?.let { bytes -> BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                retriever.embeddedPicture?.let { bytes ->
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    val sampleSize = maxOf(1, maxOf(bounds.outWidth / 512, bounds.outHeight / 512))
+                    val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                }
             } catch (_: Exception) {
                 null
             } finally {
