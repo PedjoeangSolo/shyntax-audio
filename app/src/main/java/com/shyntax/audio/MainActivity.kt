@@ -1195,12 +1195,6 @@ private fun AudioHome(
         }
     }
 
-                onPlayer = {},
-                onLibrary = { showLibrary = true },
-                onLyrics = { onShowLyricsControls(true) },
-                onAudio = { onShowAudioOutputSettings(true) }
-            )
-        }
     }
 }
 
