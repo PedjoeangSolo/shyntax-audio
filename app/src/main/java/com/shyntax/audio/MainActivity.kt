@@ -1118,7 +1118,7 @@ private fun AudioHome(
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     @Composable fun Shortcut(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, action: () -> Unit, active: Boolean = false) {
-                        Surface(color = Color(0x665F5F5F), shape = RoundedCornerShape(40.dp), modifier = Modifier.weight(1f).height(48.dp).clickable { action() }) {
+                        Surface(color = Color(0x665F5F5F), shape = RoundedCornerShape(40.dp), modifier = Modifier.width(70.dp).height(48.dp).clickable { action() }) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(icon, label, tint = if (active) Color.White else Color.White.copy(alpha = 0.72f), modifier = Modifier.size(25.dp))
                             }
@@ -1179,7 +1179,7 @@ private fun AudioHome(
                         Icon(Icons.Default.VolumeUp, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
                         val rate = audioFileInfo.sampleRate?.let { "${it / 1000.0} kHz" } ?: "—"
-                        Text("${audioOutputs.firstOrNull()?.name ?: "ANDROID AUDIO"}  •  ${audioFileInfo.bitDepth?.let { "${it} BIT" } ?: "AUDIO"}  ${rate}",
+                        Text("${audioOutputs.firstOrNull()?.name ?: "ANDROID AUDIO"}  •  ${${rate}",
                             color = Color.White.copy(alpha = 0.86f), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 }
@@ -1194,10 +1194,7 @@ private fun AudioHome(
             }
         }
     }
-
-    }
 }
-
 
 
 @Composable
