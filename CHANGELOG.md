@@ -1,5 +1,17 @@
 # SHYNTAX AUDIO — Changelog
 
+## 1.3.0
+- Added A–B Repeat controls to mark a start point (A) and end point (B) in the current track.
+- Playback automatically seeks back to A when the active player reaches B.
+- A–B markers reset when the track changes and can be cleared manually.
+- B can only be set after A and at a later playback position.
+- Bumped app version to 1.3.0 (versionCode 15).
+
+### Testing notes
+- Test A/B marker validation, loop timing, pause/resume, manual seeking, and track changes on a physical device.
+- CI success confirms compilation and APK packaging only.
+
+
 ## 1.2.0
 - Added a local Recently Played history tab in the music library.
 - Stores up to 50 unique recently played tracks and moves the current track to the top when playback starts or the player changes tracks.
