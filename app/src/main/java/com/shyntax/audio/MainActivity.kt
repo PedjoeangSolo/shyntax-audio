@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.Image
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -744,6 +745,13 @@ private fun AudioHome(
     onEqChange: (Int, Float) -> Unit, onEqPreset: (String) -> Unit,
     onParametricApply: (List<Float>, List<Float>, List<Float>) -> Unit
 ) {
+    val screenHeightDp = LocalConfiguration.current.screenHeightDp
+    val compactLayout = screenHeightDp < 760
+    val artworkFraction = when {
+        screenHeightDp < 700 -> 0.56f
+        screenHeightDp < 800 -> 0.64f
+        else -> 0.72f
+    }
     var showLibrary by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf("Lagu") }
     var query by remember { mutableStateOf("") }
@@ -994,8 +1002,15 @@ private fun AudioHome(
                     onValueChangeFinished = { onSeek(slider.toLong()) },
                     valueRange = 0f..(duration.coerceAtLeast(1L).toFloat()))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onToggleShuffle) {
+                        Icon(Icons.Default.Shuffle, "Acak", tint = if (shuffleEnabled) Ice else Color.LightGray)
+                    }
                     IconButton(onClick = onPrevious) { Icon(Icons.Default.SkipPrevious, "Sebelumnya", tint = Color.White) }
                     IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, "Berikutnya", tint = Color.White) }
+                    IconButton(onClick = onCycleRepeat) {
+                        Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                            "Ulang", tint = if (repeatMode != Player.REPEAT_MODE_OFF) Ice else Color.LightGray)
+                    }
                 }
             }
         }
@@ -1020,7 +1035,7 @@ private fun AudioHome(
                 androidx.compose.ui.graphics.Brush.verticalGradient(
                     listOf(Color(0xFF18233A), Color(0xFF0D1321), Background)
                 )
-            ).padding(horizontal = 22.dp, vertical = 14.dp),
+            ).padding(horizontal = if (compactLayout) 16.dp else 22.dp, vertical = if (compactLayout) 7.dp else 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1069,7 +1084,7 @@ private fun AudioHome(
             }
             Spacer(Modifier.height(12.dp))
             Surface(
-                modifier = Modifier.fillMaxWidth(0.78f).aspectRatio(1f),
+                modifier = Modifier.fillMaxWidth(artworkFraction).aspectRatio(1f),
                 shape = RoundedCornerShape(28.dp),
                 color = Color(0xFF342D5C),
                 shadowElevation = 22.dp
@@ -1100,7 +1115,7 @@ private fun AudioHome(
             Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White, fontSize = if (compactLayout) 18.sp else 21.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text(activeTrack?.artist ?: "Pilih lagu dari pustaka", color = MutedText, fontSize = 13.sp, maxLines = 1)
                     activeTrack?.album?.takeIf { it.isNotBlank() && it != "Unknown" }?.let {
                         Text(it, color = MutedText, fontSize = 11.sp, maxLines = 1)
@@ -1166,7 +1181,9 @@ private fun AudioHome(
                     Triple("EQ", Icons.Default.Tune) { onShowEqualizer(true) },
                     Triple("DSP", Icons.Default.GraphicEq) { onShowDsp(true) },
                     Triple("VISUAL", Icons.Default.Waves) { onShowVisualizer(true) },
-                    Triple("ANALYZER", Icons.Default.Analytics) { onShowHiResDialog(true); onRefreshAudioInfo() }
+                    Triple("ANALYZER", Icons.Default.Analytics) { onShowHiResDialog(true); onRefreshAudioInfo() },
+                    Triple("LYRICS", Icons.Default.Lyrics) { onShowLyricsControls(true) },
+                    Triple("OUTPUT", Icons.Default.Headphones) { onShowAudioOutputSettings(true) }
                 ).forEach { item ->
                     Surface(
                         modifier = Modifier.weight(1f).clickable { item.third() },
@@ -1175,7 +1192,7 @@ private fun AudioHome(
                         Column(Modifier.padding(vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(item.second, contentDescription = item.first, tint = Ice, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.height(3.dp))
-                            Text(item.first, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            Text(item.first, color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
                 }

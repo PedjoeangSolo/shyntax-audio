@@ -1,3 +1,15 @@
+## v1.5.0 — Responsive Hi-Fi Player Redesign
+- Refined the Now Playing screen with screen-height-aware album artwork sizing and compact spacing for shorter phone displays.
+- Expanded direct access to Equalizer, DSP, Visualizer, Analyzer, Lyrics, and Audio Output from the player.
+- Improved the Library mini-player with Shuffle and Repeat controls alongside previous/next and seek.
+- Kept the Media3 playback service, FFmpeg ALAC decoder, DSP processing, resampler, and existing library data flow unchanged.
+- Bumped app version to 1.5.0 (versionCode 19).
+
+### Testing notes
+- Verify the player layout on short and standard phone screens, including long titles and missing artwork.
+- Regression-test ALAC 96 kHz playback, other formats, Shuffle/Repeat, mini-player seeking, EQ, DSP, visualizer, analyzer, lyrics, and output settings.
+- CI success confirms compilation and APK packaging only; it does not prove device behavior.
+
 ## v1.4.0 — Hi-Fi UI Refresh
 - Introduced a refined dark navy and ice-cyan visual system for a more premium Hi-Fi identity.
 - Redesigned the Now Playing header, source/output summary, album-art presentation, track metadata, and quick audio controls.
