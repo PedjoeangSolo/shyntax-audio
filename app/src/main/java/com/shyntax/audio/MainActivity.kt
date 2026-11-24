@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
     private var showEqualizer by mutableStateOf(false)
     private var showHiResDialog by mutableStateOf(false)
     private var showBackupDialog by mutableStateOf(false)
+    private var showAudioOutputSettings by mutableStateOf(false)
     private var backupStatus by mutableStateOf("")
     private var currentAudioInfo by mutableStateOf(AudioFileInfo())
     private var audioOutputs by mutableStateOf<List<AudioOutputInfo>>(emptyList())
@@ -236,6 +237,7 @@ class MainActivity : ComponentActivity() {
                     showHiResDialog = showHiResDialog, onShowHiResDialog = { showHiResDialog = it },
                     audioFileInfo = currentAudioInfo, audioOutputs = audioOutputs,
                     showBackupDialog = showBackupDialog, onShowBackupDialog = { showBackupDialog = it }, backupStatus = backupStatus,
+                    showAudioOutputSettings = showAudioOutputSettings, onShowAudioOutputSettings = { showAudioOutputSettings = it },
                     onExportBackup = { backupExportPicker.launch("SHYNTAX-AUDIO-backup.zip") },
                     onImportBackup = { backupImportPicker.launch(arrayOf("application/zip", "application/octet-stream")) },
                     onRefreshAudioInfo = { refreshAudioInfo() },
@@ -558,6 +560,7 @@ private fun AudioHome(
     showHiResDialog: Boolean, onShowHiResDialog: (Boolean) -> Unit,
     audioFileInfo: AudioFileInfo, audioOutputs: List<AudioOutputInfo>, onRefreshAudioInfo: () -> Unit,
     showBackupDialog: Boolean, onShowBackupDialog: (Boolean) -> Unit, backupStatus: String,
+    showAudioOutputSettings: Boolean, onShowAudioOutputSettings: (Boolean) -> Unit,
     onExportBackup: () -> Unit, onImportBackup: () -> Unit,
     visualizerMode: String, visualizerWave: List<Float>, visualizerFft: List<Float>,
     visualizerFps: Int, visualizerQuality: Int, visualizerStatus: String,
@@ -618,6 +621,9 @@ private fun AudioHome(
         BackupDialog(status = backupStatus, onExport = onExportBackup, onImport = onImportBackup,
             onDismiss = { onShowBackupDialog(false) })
     }
+    if (showAudioOutputSettings) {
+        AudioOutputSettingsDialog(onDismiss = { onShowAudioOutputSettings(false) })
+    }
     if (showEqualizer) {
         EqualizerDialog(
             levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,
@@ -631,6 +637,9 @@ private fun AudioHome(
             Column(Modifier.weight(1f)) {
                 Text("SHYNTAX", color = Ice, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                 Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
+            }
+            IconButton(onClick = { onShowAudioOutputSettings(true) }) {
+                Icon(Icons.Default.Headphones, "Pengaturan output audio", tint = Ice)
             }
             IconButton(onClick = { onShowBackupDialog(true) }) {
                 Icon(Icons.Default.Settings, "Backup dan pengaturan", tint = Ice)
