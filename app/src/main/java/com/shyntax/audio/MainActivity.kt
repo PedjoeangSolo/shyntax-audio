@@ -195,7 +195,10 @@ class MainActivity : ComponentActivity() {
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     currentTrackIndex = controller?.currentMediaItemIndex ?: 0
                     loadLyricsForCurrentTrack()
-                    tracks.getOrNull(currentTrackIndex)?.uri?.let { refreshAudioInfo(it) }
+                    tracks.getOrNull(currentTrackIndex)?.let { track ->
+                        refreshAudioInfo(track.uri)
+                        loadArtwork(track.uri, track.album, track.artist)
+                    }
                 }
             })
             val sessionId = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
