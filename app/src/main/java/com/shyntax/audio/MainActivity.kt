@@ -517,7 +517,10 @@ class MainActivity : ComponentActivity() {
                         } finally { retriever.release() }
                     }
                 }.getOrNull()
-                if (embedded != null) return@withContext embedded
+                if (embedded != null) {
+                    runCatching { cached.outputStream().use { embedded.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
+                    return@withContext embedded
+                }
 
                 val localCover = runCatching {
                     val path = contentResolver.query(uri, arrayOf(MediaStore.Audio.Media.DATA), null, null, null)
@@ -528,7 +531,10 @@ class MainActivity : ComponentActivity() {
                         parent?.let { File(it, name) }?.takeIf { it.isFile }?.let { BitmapFactory.decodeFile(it.absolutePath) }
                     }
                 }.getOrNull()
-                if (localCover != null) return@withContext localCover
+                if (localCover != null) {
+                    runCatching { cached.outputStream().use { localCover.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
+                    return@withContext localCover
+                }
                 if (cached.exists()) BitmapFactory.decodeFile(cached.absolutePath)?.let { return@withContext it }
 
                 if (album.isBlank() || album == "Album tidak diketahui" ||
@@ -561,7 +567,7 @@ class MainActivity : ComponentActivity() {
                     runCatching { cached.outputStream().use { image.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
                 }
             }
-            currentArtwork = bitmap
+            if (tracks.getOrNull(currentTrackIndex)?.uri == uri) currentArtwork = bitmap
         }
     }
 
