@@ -41,12 +41,17 @@ fun HiResAudioDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Hi-Res & Audio Output", color = Color(0xFF69D8FF)) },
+        title = { Text("Advanced Audio Analyzer", color = Color(0xFF69D8FF)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("INFORMASI FILE", color = Color(0xFF69D8FF), style = MaterialTheme.typography.labelMedium)
                 InfoRow("Codec / MIME", fileInfo.mimeType)
-                InfoRow("Sample rate", fileInfo.sampleRate?.let { "${it} Hz" } ?: "Tidak dilaporkan decoder")
+                InfoRow("Profil sumber", when (fileInfo.mimeType.lowercase()) {
+                    "audio/flac", "audio/alac", "audio/wav", "audio/x-wav", "audio/ape", "audio/wavpack" -> "Format lossless"
+                    "audio/mpeg", "audio/aac", "audio/mp4", "audio/ogg", "audio/opus" -> "Format terkompresi"
+                    else -> "Format belum diklasifikasikan"
+                })
+                InfoRow("Sample rate sumber", fileInfo.sampleRate?.let { "${it} Hz" } ?: "Tidak dilaporkan decoder")
                 InfoRow("Channel", fileInfo.channels?.toString() ?: "Tidak tersedia")
                 InfoRow("Bitrate", fileInfo.bitrate?.let { "${it / 1000} kbps" } ?: "Tidak tersedia")
                 InfoRow("PCM bit depth", pcmLabel(fileInfo.pcmEncoding))
@@ -60,8 +65,19 @@ fun HiResAudioDialog(
                         InfoRow(output.name, if (output.isUsb) "USB • ${output.type}" else output.type)
                     }
                 }
+                HorizontalDivider()
+                Text("ANALISIS SUMBER", color = Color(0xFF69D8FF), style = MaterialTheme.typography.labelMedium)
                 Text(
-                    "USB DAC mengikuti routing Android. Sample rate/bit depth output aktual dan bit-perfect belum dapat dijamin oleh informasi ini.",
+                    when {
+                        fileInfo.sampleRate == null -> "Decoder tidak melaporkan sample rate sumber."
+                        fileInfo.sampleRate >= 88200 -> "Sample rate sumber termasuk kategori high sample rate. Ini tidak otomatis menjamin kualitas rekaman atau mastering."
+                        else -> "Sumber berada pada sample rate standar. Kualitas akhir tetap bergantung pada rekaman, mastering, codec, dan perangkat."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.LightGray
+                )
+                Text(
+                    "Panel ini membaca metadata file dan daftar perangkat output Android. Peak, clipping, sample rate keluaran aktual, serta bit-perfect DAC belum diukur.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.LightGray
                 )
