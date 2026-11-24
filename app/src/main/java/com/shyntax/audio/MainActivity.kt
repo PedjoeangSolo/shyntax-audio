@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
@@ -85,6 +86,8 @@ class MainActivity : ComponentActivity() {
     private var abRepeatEnd by mutableStateOf<Long?>(null)
     private var currentTitle by mutableStateOf("Belum ada lagu")
     private var playing by mutableStateOf(false)
+    private var shuffleEnabled by mutableStateOf(false)
+    private var repeatMode by mutableIntStateOf(Player.REPEAT_MODE_OFF)
     private var position by mutableLongStateOf(0L)
     private var duration by mutableLongStateOf(0L)
     private var eqEngine: NativeEqEngine? = null
@@ -213,6 +216,12 @@ class MainActivity : ComponentActivity() {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     duration = controller?.duration?.takeIf { it > 0 } ?: 0L
                 }
+                override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                    shuffleEnabled = shuffleModeEnabled
+                }
+                override fun onRepeatModeChanged(newRepeatMode: Int) {
+                    repeatMode = newRepeatMode
+                }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     currentTrackIndex = controller?.currentMediaItemIndex ?: 0
                     abRepeatStart = null
@@ -255,6 +264,15 @@ class MainActivity : ComponentActivity() {
                 AudioHome(
                     tracks = tracks.toList(), recentTrackUris = recentTrackUris.toList(), title = currentTitle, playing = playing,
                     position = position, duration = duration,
+                    playingTrackIndex = currentTrackIndex, shuffleEnabled = shuffleEnabled, repeatMode = repeatMode,
+                    onToggleShuffle = { controller?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled } },
+                    onCycleRepeat = { controller?.let { player ->
+                        player.repeatMode = when (player.repeatMode) {
+                            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+                    } },
                     onImport = { picker.launch(arrayOf("audio/*")) },
                     scanStatus = scanStatus,
                     onScan = { requestMusicScan() },
@@ -699,6 +717,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AudioHome(
     tracks: List<Track>, recentTrackUris: List<String>, title: String, playing: Boolean, position: Long, duration: Long,
+    playingTrackIndex: Int, shuffleEnabled: Boolean, repeatMode: Int,
+    onToggleShuffle: () -> Unit, onCycleRepeat: () -> Unit,
     abRepeatStart: Long?, abRepeatEnd: Long?, onSetAbStart: () -> Unit, onSetAbEnd: () -> Unit, onClearAbRepeat: () -> Unit,
     onImport: () -> Unit, scanStatus: String, onScan: () -> Unit,
     onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
@@ -725,8 +745,6 @@ private fun AudioHome(
     onParametricApply: (List<Float>, List<Float>, List<Float>) -> Unit
 ) {
     var showLibrary by remember { mutableStateOf(false) }
-    var shuffleEnabled by remember { mutableStateOf(false) }
-    var repeatEnabled by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf("Lagu") }
     var query by remember { mutableStateOf("") }
     var groupFilter by remember { mutableStateOf<String?>(null) }
@@ -969,7 +987,7 @@ private fun AudioHome(
         )
     }
     } else {
-        val activeIndex = tracks.indexOfFirst { it.title == title }.takeIf { it >= 0 } ?: 0
+        val activeIndex = playingTrackIndex.takeIf { it in tracks.indices } ?: -1
         val activeTrack = tracks.getOrNull(activeIndex)
         var sliderNow by remember(position) { mutableFloatStateOf(position.toFloat()) }
         fun timeLabel(ms: Long): String {
@@ -1091,7 +1109,7 @@ private fun AudioHome(
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = { shuffleEnabled = !shuffleEnabled }) {
+                    IconButton(onClick = onToggleShuffle) {
                         Icon(Icons.Default.Shuffle, "Acak", tint = if (shuffleEnabled) Ice else Color.Gray, modifier = Modifier.size(27.dp))
                     }
                     Text("Acak", color = Color.Gray, fontSize = 11.sp)
@@ -1107,10 +1125,11 @@ private fun AudioHome(
                     Icon(Icons.Default.SkipNext, "Berikutnya", tint = Color.White, modifier = Modifier.size(34.dp))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = { repeatEnabled = !repeatEnabled }) {
-                        Icon(Icons.Default.Repeat, "Ulang", tint = if (repeatEnabled) Ice else Color.Gray, modifier = Modifier.size(27.dp))
+                    IconButton(onClick = onCycleRepeat) {
+                        Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                            "Ulang", tint = if (repeatMode != Player.REPEAT_MODE_OFF) Ice else Color.Gray, modifier = Modifier.size(27.dp))
                     }
-                    Text("Ulang", color = Color.Gray, fontSize = 11.sp)
+                    Text(when (repeatMode) { Player.REPEAT_MODE_ONE -> "Satu"; Player.REPEAT_MODE_ALL -> "Semua"; else -> "Ulang" }, color = Color.Gray, fontSize = 11.sp)
                 }
             }
             Spacer(Modifier.height(10.dp))
