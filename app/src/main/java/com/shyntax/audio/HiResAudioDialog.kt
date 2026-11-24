@@ -66,6 +66,10 @@ fun HiResAudioDialog(
                     }
                 }
                 HorizontalDivider()
+                Text("ANALISIS PCM REAL-TIME", color = Color(0xFF69D8FF), style = MaterialTheme.typography.labelMedium)
+                InfoRow("Peak PCM", String.format("%.1f dBFS", AudioAnalysisState.peakDb))
+                InfoRow("RMS PCM", String.format("%.1f dBFS", AudioAnalysisState.rmsDb))
+                InfoRow("Sampel mendekati clipping", AudioAnalysisState.clippingSamples.toString())
                 Text("ANALISIS SUMBER", color = Color(0xFF69D8FF), style = MaterialTheme.typography.labelMedium)
                 Text(
                     when {
