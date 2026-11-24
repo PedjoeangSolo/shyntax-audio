@@ -58,4 +58,12 @@ The player uses Media3/Android platform extractors. Common formats supported by 
 ## Build
 Run **Actions → Build SHYNTAX AUDIO APK** or use the GitHub Actions workflow after pushing to `main`. Requires JDK 17 and Android SDK 35.
 
+## Contributing
+Contributions are welcome! You can report bugs, suggest features, improve documentation, test on other Android devices, or submit code changes.
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a Pull Request.
+- Use the [bug report](https://github.com/PedjoeangSolo/shyntax-audio/issues/new?template=bug_report.md) or [feature request](https://github.com/PedjoeangSolo/shyntax-audio/issues/new?template=feature_request.md) templates.
+- Read our [Code of Conduct](CODE_OF_CONDUCT.md) and [Security Policy](SECURITY.md).
+- Submit changes through a fork and Pull Request. All changes are reviewed before merging.
+
 Repository: https://github.com/PedjoeangSolo/shyntax-audio
