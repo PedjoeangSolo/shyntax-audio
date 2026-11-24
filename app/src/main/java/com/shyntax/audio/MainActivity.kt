@@ -47,6 +47,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -1038,176 +1040,161 @@ private fun AudioHome(
             val total = (ms.coerceAtLeast(0L) / 1000L).toInt()
             return "%02d:%02d".format(total / 60, total % 60)
         }
-        Column(
-            Modifier.fillMaxSize().background(
-                androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(Color(0xFF18233A), Color(0xFF0D1321), Background)
-                )
-            ).padding(horizontal = if (compactLayout) 16.dp else 22.dp, vertical = if (compactLayout) 7.dp else 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Ice, modifier = Modifier.size(21.dp))
-                        Spacer(Modifier.width(7.dp))
-                        Text("SHYNTAX", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.8.sp)
-                        Text(" AUDIO", color = Ice, fontSize = 19.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                    }
-                    Text("NOW PLAYING  •  HI-RES AUDIO", color = MutedText, fontSize = 9.sp, letterSpacing = 1.3.sp)
-                }
-                Surface(color = PanelRaised, shape = RoundedCornerShape(50)) {
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(7.dp).background(if (playing) Color(0xFF5BE0A0) else MutedText, RoundedCornerShape(50)))
-                        Spacer(Modifier.width(7.dp))
-                        Text(if (playing) "PLAYING" else "READY", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Box {
-                    var menuExpanded by remember { mutableStateOf(false) }
-                    IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "Menu", tint = Color.White) }
-                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(text = { Text("Pustaka Musik") }, onClick = { menuExpanded = false; showLibrary = true })
-                        DropdownMenuItem(text = { Text("Pengaturan Output Audio") }, onClick = { menuExpanded = false; onShowAudioOutputSettings(true) })
-                        DropdownMenuItem(text = { Text("Visualizer") }, onClick = { menuExpanded = false; onShowVisualizer(true) })
-                        DropdownMenuItem(text = { Text("Equalizer") }, onClick = { menuExpanded = false; onShowEqualizer(true) })
-                    }
-                }
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            if (artwork != null) {
+                Image(artwork.asImageBitmap(), contentDescription = null,
+                    modifier = Modifier.fillMaxSize().blur(42.dp).alpha(0.42f),
+                    contentScale = ContentScale.Crop)
+                Box(Modifier.fillMaxSize().background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Color(0x55303030), Color(0xAA080808), Color(0xFF050505))
+                    )
+                ))
+            } else {
+                Box(Modifier.fillMaxSize().background(Color(0xFF050505)))
             }
-            Spacer(Modifier.height(12.dp))
-            Surface(color = Color(0xFF101A28), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.HighQuality, contentDescription = "Format sumber", tint = Ice, modifier = Modifier.size(23.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("FORMAT SUMBER", color = MutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                        Text(audioFileInfo.sampleRate?.let { "${it / 1000.0} kHz" } ?: "Belum terdeteksi",
-                            color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    }
-                    Box(Modifier.width(1.dp).height(30.dp).background(PanelRaised))
-                    Column(Modifier.weight(1f)) {
-                        Text("OUTPUT AUDIO", color = MutedText, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                        Text(audioOutputs.firstOrNull()?.name ?: "Android AudioTrack", color = Ice, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Surface(
-                modifier = Modifier.fillMaxWidth(artworkFraction).aspectRatio(1f),
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF342D5C),
-                shadowElevation = 22.dp
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (artwork != null) {
-                    Image(artwork.asImageBitmap(), contentDescription = "Sampul album",
-                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                } else {
-                    Box(Modifier.fillMaxSize().background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            listOf(Color(0xFF573B73), Color(0xFFFF855D), Color(0xFF294E7C))
-                        )
-                    )) {
-                        Box(Modifier.fillMaxWidth().height(110.dp).align(Alignment.TopCenter).background(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0x665D3C78), Color.Transparent))
-                        ))
-                        Box(Modifier.size(92.dp).align(Alignment.CenterStart).offset(x = 38.dp, y = 28.dp)
-                            .background(Color(0xFF34244F), RoundedCornerShape(48.dp)))
-                        Box(Modifier.fillMaxWidth(0.82f).height(125.dp).align(Alignment.BottomEnd)
-                            .offset(x = 28.dp, y = 12.dp).background(Color(0xFF49366E), RoundedCornerShape(topStart = 100.dp)))
-                        Box(Modifier.fillMaxWidth(0.72f).height(70.dp).align(Alignment.BottomStart)
-                            .offset(x = (-24).dp, y = 24.dp).background(Color(0xFF263F70), RoundedCornerShape(topEnd = 100.dp)))
-                        Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.align(Alignment.Center).size(76.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.GraphicEq, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("SHYNTAX AUDIO", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                        Text("NOW PLAYING", color = Color.White.copy(alpha = 0.58f), fontSize = 9.sp, letterSpacing = 1.4.sp)
                     }
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White, fontSize = if (compactLayout) 18.sp else 21.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text(activeTrack?.artist ?: "Pilih lagu dari pustaka", color = MutedText, fontSize = 13.sp, maxLines = 1)
-                    activeTrack?.album?.takeIf { it.isNotBlank() && it != "Unknown" }?.let {
-                        Text(it, color = MutedText, fontSize = 11.sp, maxLines = 1)
-                    }
-                }
-                IconButton(onClick = { if (activeIndex in tracks.indices) onFavorite(activeIndex) }) {
-                    Icon(if (activeTrack?.isFavorite == true) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        "Favorit", tint = if (activeTrack?.isFavorite == true) Color(0xFFFF8DAB) else Color.LightGray,
-                        modifier = Modifier.size(30.dp))
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Slider(
-                value = if (duration > 0) sliderNow.coerceIn(0f, duration.toFloat()) else 0f,
-                onValueChange = { sliderNow = it },
-                onValueChangeFinished = { onSeek(sliderNow.toLong()) },
-                valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
-                colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFFB9EDFF), activeTrackColor = Color(0xFFB9EDFF),
-                    inactiveTrackColor = Color(0xFF425363)
-                )
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(timeLabel(position), color = Color(0xFF9EADBC), fontSize = 12.sp)
-                Text(timeLabel(duration), color = Color(0xFF9EADBC), fontSize = 12.sp)
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TextButton(onClick = onSetAbStart, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) { Text(if (abRepeatStart == null) "A • SET" else "A • ${timeLabel(abRepeatStart!!)}", color = Ice, fontSize = 10.sp) }
-                TextButton(onClick = onSetAbEnd, enabled = abRepeatStart != null && position > (abRepeatStart ?: Long.MAX_VALUE), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) { Text(if (abRepeatEnd == null) "B • SET" else "B • ${timeLabel(abRepeatEnd!!)}", color = Ice, fontSize = 10.sp) }
-                Text(if (abRepeatStart != null && abRepeatEnd != null) "A–B REPEAT ON" else "A–B REPEAT", color = if (abRepeatEnd != null) Ice else MutedText, fontSize = 9.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = onClearAbRepeat, enabled = abRepeatStart != null || abRepeatEnd != null, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)) { Text("Hapus", color = Color(0xFFFF9E9E), fontSize = 10.sp) }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = onToggleShuffle) {
-                        Icon(Icons.Default.Shuffle, "Acak", tint = if (shuffleEnabled) Ice else Color.Gray, modifier = Modifier.size(27.dp))
-                    }
-                    Text("Acak", color = Color.Gray, fontSize = 11.sp)
-                }
-                IconButton(onClick = onPrevious, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.SkipPrevious, "Sebelumnya", tint = Color.White, modifier = Modifier.size(34.dp))
-                }
-                FilledIconButton(onClick = onPlayPause, modifier = Modifier.size(76.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFFE2F7FF), contentColor = Color(0xFF168AC1))) {
-                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Putar/Jeda", modifier = Modifier.size(42.dp))
-                }
-                IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.SkipNext, "Berikutnya", tint = Color.White, modifier = Modifier.size(34.dp))
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = onCycleRepeat) {
-                        Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                            "Ulang", tint = if (repeatMode != Player.REPEAT_MODE_OFF) Ice else Color.Gray, modifier = Modifier.size(27.dp))
-                    }
-                    Text(when (repeatMode) { Player.REPEAT_MODE_ONE -> "Satu"; Player.REPEAT_MODE_ALL -> "Semua"; else -> "Ulang" }, color = Color.Gray, fontSize = 11.sp)
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Triple("EQ", Icons.Default.Tune) { onShowEqualizer(true) },
-                    Triple("DSP", Icons.Default.GraphicEq) { onShowDsp(true) },
-                    Triple("VISUAL", Icons.Default.Waves) { onShowVisualizer(true) },
-                    Triple("ANALYZER", Icons.Default.Analytics) { onShowHiResDialog(true); onRefreshAudioInfo() },
-                    Triple("LYRICS", Icons.Default.Lyrics) { onShowLyricsControls(true) },
-                    Triple("OUTPUT", Icons.Default.Headphones) { onShowAudioOutputSettings(true) }
-                ).forEach { item ->
-                    Surface(
-                        modifier = Modifier.width(66.dp).clickable { item.third() },
-                        color = Panel, shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(Modifier.padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(item.second, contentDescription = item.first, tint = Ice, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.height(3.dp))
-                            Text(item.first, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    IconButton(onClick = { onShowVisualizer(true) }) { Icon(Icons.Default.Waves, "Visualizer", tint = Color.White) }
+                    Box {
+                        var menuExpanded by remember { mutableStateOf(false) }
+                        IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "Menu", tint = Color.White) }
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("Pustaka Musik") }, onClick = { menuExpanded = false; showLibrary = true })
+                            DropdownMenuItem(text = { Text("Equalizer") }, onClick = { menuExpanded = false; onShowEqualizer(true) })
+                            DropdownMenuItem(text = { Text("DSP") }, onClick = { menuExpanded = false; onShowDsp(true) })
+                            DropdownMenuItem(text = { Text("Pengaturan Output Audio") }, onClick = { menuExpanded = false; onShowAudioOutputSettings(true) })
+                            DropdownMenuItem(text = { Text("Atur titik A") }, onClick = { menuExpanded = false; onSetAbStart() })
+                            DropdownMenuItem(text = { Text("Atur titik B") }, onClick = { menuExpanded = false; onSetAbEnd() })
+                            DropdownMenuItem(text = { Text("Hapus A–B") }, onClick = { menuExpanded = false; onClearAbRepeat() })
                         }
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    Modifier.fillMaxWidth(artworkFraction).weight(0.94f).aspectRatio(1f)
+                        .background(Color(0xFF202020), RoundedCornerShape(18.dp))
+                ) {
+                    if (artwork != null) {
+                        Image(artwork.asImageBitmap(), contentDescription = "Sampul album",
+                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    } else {
+                        Box(Modifier.fillMaxSize().background(Color(0xFF171717)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(alpha = 0.65f), modifier = Modifier.size(76.dp))
+                        }
+                    }
+                    Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Surface(color = Color(0x77000000), shape = RoundedCornerShape(50)) {
+                            IconButton(onClick = { if (activeIndex in tracks.indices) onFavorite(activeIndex) }) {
+                                Icon(if (activeTrack?.isFavorite == true) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    "Favorit", tint = if (activeTrack?.isFavorite == true) Color(0xFFFF8AA0) else Color.White)
+                            }
+                        }
+                        Spacer(Modifier.weight(1f))
+                        Surface(color = Color(0x77000000), shape = RoundedCornerShape(50)) {
+                            IconButton(onClick = { onShowHiResDialog(true); onRefreshAudioInfo() }) {
+                                Icon(Icons.Default.MoreVert, "Info lagu dan audio", tint = Color.White)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+                    Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White,
+                        fontSize = if (compactLayout) 20.sp else 23.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(activeTrack?.let { "${it.artist} - ${it.title}" } ?: "Pilih lagu dari pustaka",
+                        color = Color.White.copy(alpha = 0.78f), fontSize = 14.sp, maxLines = 1)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    @Composable fun Shortcut(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, action: () -> Unit, active: Boolean = false) {
+                        Surface(color = Color(0x665F5F5F), shape = RoundedCornerShape(40.dp), modifier = Modifier.weight(1f).height(48.dp).clickable { action() }) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(icon, label, tint = if (active) Color.White else Color.White.copy(alpha = 0.72f), modifier = Modifier.size(25.dp))
+                            }
+                        }
+                    }
+                    Shortcut(Icons.Default.GraphicEq, "Visualizer") { onShowVisualizer(true) }
+                    Spacer(Modifier.width(7.dp))
+                    Shortcut(Icons.Default.Timer, "Timer") { onShowLyricsControls(true) }
+                    Spacer(Modifier.width(7.dp))
+                    Shortcut(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                        "Repeat", { onCycleRepeat() }, repeatMode != Player.REPEAT_MODE_OFF)
+                    Spacer(Modifier.width(7.dp))
+                    Shortcut(Icons.Default.Shuffle, "Shuffle", { onToggleShuffle() }, shuffleEnabled)
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth().height(104.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    val levels = (visualizerFft.take(34).ifEmpty { visualizerWave.take(34) })
+                    repeat(34) { i ->
+                        val v = levels.getOrNull(i)?.let { kotlin.math.abs(it).coerceIn(0.08f, 1f) }
+                            ?: (0.18f + ((i * 17) % 13) / 18f)
+                        Box(Modifier.weight(1f).padding(horizontal = 1.dp).height((18f + v * 78f).dp)
+                            .background(Color.White.copy(alpha = 0.28f + v * 0.55f), RoundedCornerShape(8.dp)))
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
+                    IconButton(onClick = onPrevious, modifier = Modifier.size(54.dp)) {
+                        Icon(Icons.Default.FastRewind, "Sebelumnya", tint = Color.White.copy(alpha = 0.65f), modifier = Modifier.size(25.dp))
+                    }
+                    Surface(color = Color.Black, shape = RoundedCornerShape(50), modifier = Modifier.size(78.dp).clickable { onPrevious() }) {
+                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.SkipPrevious, "Sebelumnya", tint = Color.White, modifier = Modifier.size(42.dp)) }
+                    }
+                    Surface(color = Color.Black, shape = RoundedCornerShape(50), modifier = Modifier.size(104.dp).clickable { onPlayPause() }) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Putar/Jeda", tint = Color.White, modifier = Modifier.size(62.dp))
+                        }
+                    }
+                    Surface(color = Color.Black, shape = RoundedCornerShape(50), modifier = Modifier.size(78.dp).clickable { onNext() }) {
+                        Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.SkipNext, "Berikutnya", tint = Color.White, modifier = Modifier.size(42.dp)) }
+                    }
+                    IconButton(onClick = onNext, modifier = Modifier.size(54.dp)) {
+                        Icon(Icons.Default.FastForward, "Berikutnya", tint = Color.White.copy(alpha = 0.65f), modifier = Modifier.size(25.dp))
+                    }
+                }
+                Slider(
+                    value = if (duration > 0) sliderNow.coerceIn(0f, duration.toFloat()) else 0f,
+                    onValueChange = { sliderNow = it },
+                    onValueChangeFinished = { onSeek(sliderNow.toLong()) },
+                    valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
+                    colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.White.copy(alpha = 0.25f))
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(timeLabel(position), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(timeLabel(duration), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(8.dp))
+                Surface(color = Color(0x55333333), shape = RoundedCornerShape(50)) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.VolumeUp, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        val rate = audioFileInfo.sampleRate?.let { "${it / 1000.0} kHz" } ?: "—"
+                        Text("${audioOutputs.firstOrNull()?.name ?: "ANDROID AUDIO"}  •  ${audioFileInfo.bitDepth?.let { "${it} BIT" } ?: "AUDIO"}  ${rate}",
+                            color = Color.White.copy(alpha = 0.86f), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                ShyntaxBottomBar(
+                    selected = "Pemutar",
+                    onPlayer = {},
+                    onLibrary = { showLibrary = true },
+                    onLyrics = { onShowLyricsControls(true) },
+                    onAudio = { onShowAudioOutputSettings(true) }
+                )
             }
-            Spacer(Modifier.weight(1f, fill = true))
-            ShyntaxBottomBar(
-                selected = "Pemutar",
+        }
+    }
+
                 onPlayer = {},
                 onLibrary = { showLibrary = true },
                 onLyrics = { onShowLyricsControls(true) },
