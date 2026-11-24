@@ -14,11 +14,11 @@ class NativeEqEngine(audioSessionId: Int) {
     private val range = effect.bandLevelRange
     private val minDb = range[0].toFloat() / 100f
     private var preampDb = 0f
-    private var lastFrequencies = thirtyOne
-    private var lastValues: List<Float> = List(31) { 0f }
     private val maxDb = range[1].toFloat() / 100f
     private val ten = floatArrayOf(31f, 62f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f)
     private val thirtyOne = floatArrayOf(20f,25f,31.5f,40f,50f,63f,80f,100f,125f,160f,200f,250f,315f,400f,500f,630f,800f,1000f,1250f,1600f,2000f,2500f,3150f,4000f,5000f,6300f,8000f,10000f,12500f,16000f,20000f)
+    private var lastFrequencies = thirtyOne
+    private var lastValues: List<Float> = List(31) { 0f }
 
     fun setPreamp(gainDb: Float) { preampDb = gainDb.coerceIn(-12f, 12f); applyCurve(lastFrequencies, lastValues) }
 
