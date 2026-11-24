@@ -46,10 +46,15 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.media3:media3-exoplayer:1.5.1")
+
+    // Use the same checked-out Media3 1.5.1 source modules as the FFmpeg decoder.
+    // Mixing Maven Media3 artifacts with source modules duplicates classes
+    // (for example androidx.media3.common.AdOverlayInfo$Builder) during D8.
+    implementation(project(":media3-lib-exoplayer"))
+    implementation(project(":media3-lib-session"))
+    implementation(project(":media3-lib-ui"))
     implementation(project(":media3-lib-decoder-ffmpeg"))
-    implementation("androidx.media3:media3-session:1.5.1")
-    implementation("androidx.media3:media3-ui:1.5.1")
+
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.google.guava:guava:33.3.1-android")
     debugImplementation("androidx.compose.ui:ui-tooling")
