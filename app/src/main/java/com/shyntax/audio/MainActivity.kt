@@ -1058,8 +1058,8 @@ private fun AudioHome(
             }
             Spacer(Modifier.height(12.dp))
             Surface(
-                modifier = Modifier.fillMaxWidth(0.86f).weight(1f, fill = false).aspectRatio(1f),
-                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.fillMaxWidth(0.74f).aspectRatio(1f),
+                shape = RoundedCornerShape(24.dp),
                 color = Color(0xFF342D5C),
                 shadowElevation = 18.dp
             ) {
@@ -1086,11 +1086,14 @@ private fun AudioHome(
                     }
                 }
             }
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-                    Text(activeTrack?.artist ?: "Pilih lagu dari pustaka", color = Color(0xFF9EADBC), fontSize = 17.sp, maxLines = 1)
+                    Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                    Text(activeTrack?.artist ?: "Pilih lagu dari pustaka", color = Color(0xFF9EADBC), fontSize = 14.sp, maxLines = 1)
+                    activeTrack?.album?.takeIf { it.isNotBlank() && it != "Unknown" }?.let {
+                        Text(it, color = MutedText, fontSize = 11.sp, maxLines = 1)
+                    }
                 }
                 IconButton(onClick = { if (activeIndex in tracks.indices) onFavorite(activeIndex) }) {
                     Icon(if (activeTrack?.isFavorite == true) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -1098,7 +1101,7 @@ private fun AudioHome(
                         modifier = Modifier.size(30.dp))
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
             Slider(
                 value = if (duration > 0) sliderNow.coerceIn(0f, duration.toFloat()) else 0f,
                 onValueChange = { sliderNow = it },
