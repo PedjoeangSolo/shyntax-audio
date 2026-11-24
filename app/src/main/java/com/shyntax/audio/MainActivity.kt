@@ -505,7 +505,6 @@ class MainActivity : ComponentActivity() {
                 val key = (artist + "|" + album).hashCode().toString()
                 val folder = File(cacheDir, "album_art").apply { mkdirs() }
                 val cached = File(folder, "$key.jpg")
-                if (cached.exists()) BitmapFactory.decodeFile(cached.absolutePath)?.let { return@withContext it }
 
                 val embedded = runCatching {
                     MediaMetadataRetriever().let { retriever ->
@@ -515,10 +514,19 @@ class MainActivity : ComponentActivity() {
                         } finally { retriever.release() }
                     }
                 }.getOrNull()
-                if (embedded != null) {
-                    runCatching { cached.outputStream().use { embedded.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
-                    return@withContext embedded
-                }
+                if (embedded != null) return@withContext embedded
+
+                val localCover = runCatching {
+                    val path = contentResolver.query(uri, arrayOf(MediaStore.Audio.Media.DATA), null, null, null)
+                        ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                    val parent = path?.let { File(it).parentFile }
+                    val names = listOf("cover.jpg", "folder.jpg", "album.jpg", "front.jpg", "cover.png", "folder.png")
+                    names.firstNotNullOfOrNull { name ->
+                        parent?.let { File(it, name) }?.takeIf { it.isFile }?.let { BitmapFactory.decodeFile(it.absolutePath) }
+                    }
+                }.getOrNull()
+                if (localCover != null) return@withContext localCover
+                if (cached.exists()) BitmapFactory.decodeFile(cached.absolutePath)?.let { return@withContext it }
 
                 if (album.isBlank() || album == "Album tidak diketahui" ||
                     artist.isBlank() || artist == "Artis tidak diketahui") return@withContext null
