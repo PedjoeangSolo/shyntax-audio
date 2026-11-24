@@ -81,7 +81,7 @@ fun HiResAudioDialog(
                     color = Color.LightGray
                 )
                 Text(
-                    "Panel ini membaca metadata file dan daftar perangkat output Android. Peak, clipping, sample rate keluaran aktual, serta bit-perfect DAC belum diukur.",
+                    "Peak dan clipping dihitung dari PCM 16-bit yang melewati mesin pemutar. Format PCM lain tidak masuk pengukuran ini. Sample rate keluaran aktual dan bit-perfect DAC tetap belum diverifikasi.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.LightGray
                 )
@@ -103,7 +103,8 @@ private fun InfoRow(label: String, value: String) {
 
 private fun pcmLabel(encoding: Int?): String = when (encoding) {
     2 -> "16-bit PCM"
-    4 -> "24-bit packed PCM"
+    4 -> "32-bit Float PCM"
+    21 -> "24-bit packed PCM"
     22 -> "32-bit PCM"
     null -> "Tidak dilaporkan decoder"
     else -> "Encoding PCM $encoding"
