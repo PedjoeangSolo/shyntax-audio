@@ -784,23 +784,34 @@ private fun AudioHome(
                 }
             }
         }
-        Surface(color = Panel, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(14.dp)) {
-                Text("SEDANG DIPUTAR", color = Ice, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Surface(color = Panel, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("SEDANG DIPUTAR", color = Ice, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                    FilledIconButton(onClick = onPlayPause) {
+                        Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Putar/Jeda")
+                    }
+                }
                 Slider(value = if (duration > 0) slider.coerceIn(0f, duration.toFloat()) else 0f,
                     onValueChange = { slider = it },
                     onValueChangeFinished = { onSeek(slider.toLong()) },
                     valueRange = 0f..(duration.coerceAtLeast(1L).toFloat()))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onPrevious) { Icon(Icons.Default.SkipPrevious, "Sebelumnya", tint = Color.White) }
-                    FilledIconButton(onClick = onPlayPause) {
-                        Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause")
-                    }
                     IconButton(onClick = onNext) { Icon(Icons.Default.SkipNext, "Berikutnya", tint = Color.White) }
                 }
             }
         }
+        ShyntaxBottomBar(
+            selected = "Pustaka",
+            onPlayer = { showLibrary = false },
+            onLibrary = {},
+            onLyrics = { onShowLyricsControls(true) },
+            onAudio = { onShowAudioOutputSettings(true) }
+        )
     }
     } else {
         val activeIndex = tracks.indexOfFirst { it.title == title }.takeIf { it >= 0 } ?: 0
@@ -916,17 +927,83 @@ private fun AudioHome(
                 }
             }
             Spacer(Modifier.weight(1f, fill = true))
-            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onShowLyricsControls(true) }) {
-                    Icon(Icons.Default.Lyrics, "Lirik dan tempo", tint = Color(0xFF9EADBC), modifier = Modifier.size(28.dp))
-                }
-                IconButton(onClick = { showLibrary = true }) {
-                    Icon(Icons.Default.QueueMusic, "Antrean dan pustaka", tint = Color(0xFF9EADBC), modifier = Modifier.size(28.dp))
-                }
-                IconButton(onClick = { onShowAudioOutputSettings(true) }) {
-                    Icon(Icons.Default.VolumeUp, "Pengaturan audio", tint = Color(0xFF9EADBC), modifier = Modifier.size(28.dp))
-                }
-            }
+            ShyntaxBottomBar(
+                selected = "Pemutar",
+                onPlayer = {},
+                onLibrary = { showLibrary = true },
+                onLyrics = { onShowLyricsControls(true) },
+                onAudio = { onShowAudioOutputSettings(true) }
+            )
         }
+    }
+}
+
+
+@Composable
+private fun ShyntaxBottomBar(
+    selected: String,
+    onPlayer: () -> Unit,
+    onLibrary: () -> Unit,
+    onLyrics: () -> Unit,
+    onAudio: () -> Unit
+) {
+    NavigationBar(
+        containerColor = Color(0xFF101B29),
+        contentColor = Color(0xFF69D8FF),
+        tonalElevation = 8.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        NavigationBarItem(
+            selected = selected == "Pemutar",
+            onClick = onPlayer,
+            icon = { Icon(Icons.Default.Home, contentDescription = "Pemutar") },
+            label = { Text("Putar") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF07131E),
+                selectedTextColor = Color(0xFF69D8FF),
+                indicatorColor = Color(0xFF69D8FF),
+                unselectedIconColor = Color(0xFF91A5B8),
+                unselectedTextColor = Color(0xFF91A5B8)
+            )
+        )
+        NavigationBarItem(
+            selected = selected == "Pustaka",
+            onClick = onLibrary,
+            icon = { Icon(Icons.Default.LibraryMusic, contentDescription = "Pustaka") },
+            label = { Text("Pustaka") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF07131E),
+                selectedTextColor = Color(0xFF69D8FF),
+                indicatorColor = Color(0xFF69D8FF),
+                unselectedIconColor = Color(0xFF91A5B8),
+                unselectedTextColor = Color(0xFF91A5B8)
+            )
+        )
+        NavigationBarItem(
+            selected = selected == "Lirik",
+            onClick = onLyrics,
+            icon = { Icon(Icons.Default.Lyrics, contentDescription = "Lirik") },
+            label = { Text("Lirik") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF07131E),
+                selectedTextColor = Color(0xFF69D8FF),
+                indicatorColor = Color(0xFF69D8FF),
+                unselectedIconColor = Color(0xFF91A5B8),
+                unselectedTextColor = Color(0xFF91A5B8)
+            )
+        )
+        NavigationBarItem(
+            selected = selected == "Audio",
+            onClick = onAudio,
+            icon = { Icon(Icons.Default.GraphicEq, contentDescription = "Audio") },
+            label = { Text("Audio") },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color(0xFF07131E),
+                selectedTextColor = Color(0xFF69D8FF),
+                indicatorColor = Color(0xFF69D8FF),
+                unselectedIconColor = Color(0xFF91A5B8),
+                unselectedTextColor = Color(0xFF91A5B8)
+            )
+        )
     }
 }
