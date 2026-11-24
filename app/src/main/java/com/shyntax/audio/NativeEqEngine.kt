@@ -13,9 +13,15 @@ class NativeEqEngine(audioSessionId: Int) {
     private val effect = Equalizer(0, audioSessionId)
     private val range = effect.bandLevelRange
     private val minDb = range[0].toFloat() / 100f
+    private var preampDb = 0f
+    private var trebleDb = 0
     private val maxDb = range[1].toFloat() / 100f
     private val ten = floatArrayOf(31f, 62f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 16000f)
     private val thirtyOne = floatArrayOf(20f,25f,31.5f,40f,50f,63f,80f,100f,125f,160f,200f,250f,315f,400f,500f,630f,800f,1000f,1250f,1600f,2000f,2500f,3150f,4000f,5000f,6300f,8000f,10000f,12500f,16000f,20000f)
+    private var lastFrequencies = thirtyOne
+    private var lastValues: List<Float> = List(31) { 0f }
+
+    fun setPreamp(gainDb: Float) { preampDb = gainDb.coerceIn(-12f, 12f); applyCurve(lastFrequencies, lastValues) }
 
     fun setEnabled(enabled: Boolean) {
         runCatching { effect.enabled = enabled }
@@ -44,10 +50,13 @@ class NativeEqEngine(audioSessionId: Int) {
     }
 
     private fun applyCurve(frequencies: FloatArray, values: List<Float>) {
+        lastFrequencies = frequencies
+        lastValues = values
         val count = effect.numberOfBands.toInt()
         for (band in 0 until count) {
             val centerHz = effect.getCenterFreq(band.toShort()).toFloat() / 1000f
-            val db = interpolateLog(frequencies, values, centerHz).coerceIn(minDb, maxDb)
+            val trebleOffset = if (centerHz >= 2000f) trebleDb.toFloat() * ((ln(centerHz.toDouble() / 2000.0) / ln(10.0)).coerceIn(0.0, 1.0)).toFloat() else 0f
+            val db = (interpolateLog(frequencies, values, centerHz) + preampDb + trebleOffset).coerceIn(minDb, maxDb)
             val millibels = (db * 100f).roundToInt().coerceIn(range[0].toInt(), range[1].toInt())
             runCatching { effect.setBandLevel(band.toShort(), millibels.toShort()) }
         }
@@ -66,8 +75,8 @@ class NativeEqEngine(audioSessionId: Int) {
     }
 
     fun applyTreble(gainDb: Int) {
-        val curve = thirtyOne.map { hz -> if (hz >= 2000f) gainDb.toFloat() * ((ln(hz.toDouble() / 2000.0) / ln(10.0)).coerceIn(0.0, 1.0)).toFloat() else 0f }
-        applyCurve(thirtyOne, curve)
+        trebleDb = gainDb.coerceIn(-12, 12)
+        applyCurve(lastFrequencies, lastValues)
     }
 
     fun release() {
