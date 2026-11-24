@@ -808,11 +808,18 @@ private fun AudioHome(
         )
     }
     if (showLibrary) {
-    Column(Modifier.fillMaxSize().background(Background).padding(18.dp)) {
+    Column(Modifier.fillMaxSize().background(
+        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF111D2D), Background))
+    ).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
-                Text("SHYNTAX", color = Ice, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                Text("AUDIO", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Ice, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("SHYNTAX", color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
+                    Text(" AUDIO", color = Ice, fontSize = 23.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                }
+                Text("MUSIC LIBRARY  •  v${BuildConfig.VERSION_NAME}", color = MutedText, fontSize = 9.sp, letterSpacing = 1.1.sp)
             }
             IconButton(onClick = { showLibrary = false }) {
                 Icon(Icons.Default.Album, "Kembali ke Now Playing", tint = Ice)
@@ -926,7 +933,7 @@ private fun AudioHome(
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(groups.keys.sorted(), key = { it }) { name ->
                     val groupTracks = groups[name].orEmpty()
-                    Surface(color = Panel, shape = RoundedCornerShape(14.dp),
+                    Surface(color = Panel, shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth().clickable { groupFilter = name }) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(if (tab == "Album") Icons.Default.Album else Icons.Default.Person, null, tint = Ice)
@@ -947,7 +954,7 @@ private fun AudioHome(
                 }
                 items(visibleTracks, key = { it.value.uri.toString() }) { indexed ->
                     val track = indexed.value
-                    Surface(color = Panel, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                             verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.MusicNote, null, tint = Ice)
@@ -971,12 +978,12 @@ private fun AudioHome(
                 }
             }
         }
-        Surface(color = Panel, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Surface(color = PanelRaised, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("SEDANG DIPUTAR", color = Ice, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                        Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text("NOW PLAYING", color = Ice, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                        Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                     FilledIconButton(onClick = onPlayPause) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Putar/Jeda")
