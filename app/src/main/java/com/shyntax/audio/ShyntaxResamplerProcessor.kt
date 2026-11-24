@@ -10,6 +10,32 @@ import java.nio.ByteOrder
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.log10
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
+
+object AudioAnalysisState {
+    var peakDb by mutableFloatStateOf(-120f)
+        private set
+    var rmsDb by mutableFloatStateOf(-120f)
+        private set
+    var clippingSamples by mutableLongStateOf(0L)
+        private set
+
+    fun update(peak: Float, rms: Float, clipped: Long) {
+        peakDb = if (peak > 0f) (20f * log10(peak)).coerceAtLeast(-120f) else -120f
+        rmsDb = if (rms > 0f) (20f * log10(rms)).coerceAtLeast(-120f) else -120f
+        clippingSamples += clipped
+    }
+
+    fun reset() {
+        peakDb = -120f
+        rmsDb = -120f
+        clippingSamples = 0L
+    }
+}
 
 /**
  * PCM16 sample-rate converter for Media3's AudioProcessor chain.
@@ -25,11 +51,11 @@ class ShyntaxResamplerProcessor(context: Context) : BaseAudioProcessor() {
         val mode = preferences.getString("resampler_mode", "Nonaktif") ?: "Nonaktif"
         selectedRate = preferences.getInt("resampler_rate", 48000)
         quality = preferences.getString("resampler_quality", "Seimbang") ?: "Seimbang"
-        if (mode != "Manual" || inputAudioFormat.encoding != C.ENCODING_PCM_16BIT ||
-            selectedRate <= 0 || selectedRate == inputAudioFormat.sampleRate) {
-            return AudioProcessor.AudioFormat.NOT_SET
+        if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) return AudioProcessor.AudioFormat.NOT_SET
+        if (mode == "Manual" && selectedRate > 0 && selectedRate != inputAudioFormat.sampleRate) {
+            return AudioProcessor.AudioFormat(selectedRate, inputAudioFormat.channelCount, C.ENCODING_PCM_16BIT)
         }
-        return AudioProcessor.AudioFormat(selectedRate, inputAudioFormat.channelCount, C.ENCODING_PCM_16BIT)
+        return inputAudioFormat
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
@@ -38,8 +64,29 @@ class ShyntaxResamplerProcessor(context: Context) : BaseAudioProcessor() {
         val outputRate = outputAudioFormat.sampleRate
         val frameBytes = channels * 2
         val frameCount = inputBuffer.remaining() / frameBytes
-        if (frameCount < 2 || inputRate <= 0 || outputRate <= 0) {
+        if (frameCount <= 0 || inputRate <= 0 || outputRate <= 0) {
             inputBuffer.position(inputBuffer.limit())
+            return
+        }
+
+        val analysisSamples = inputBuffer.duplicate().order(ByteOrder.nativeOrder()).asShortBuffer()
+        var peak = 0f
+        var sumSquares = 0.0
+        var clipped = 0L
+        val sampleCount = analysisSamples.remaining()
+        for (index in 0 until sampleCount) {
+            val normalized = analysisSamples.get(index).toFloat() / 32768f
+            val magnitude = kotlin.math.abs(normalized)
+            if (magnitude > peak) peak = magnitude
+            sumSquares += normalized * normalized
+            if (magnitude >= 0.999f) clipped++
+        }
+        AudioAnalysisState.update(peak, kotlin.math.sqrt(sumSquares / sampleCount).toFloat(), clipped)
+
+        if (outputRate == inputRate || frameCount < 2) {
+            val copy = replaceOutputBuffer(inputBuffer.remaining())
+            copy.put(inputBuffer)
+            copy.flip()
             return
         }
 
