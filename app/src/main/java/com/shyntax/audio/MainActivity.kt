@@ -330,7 +330,7 @@ class MainActivity : ComponentActivity() {
                             .putInt("loudness", loudness).putString("reverb", reverb).apply()
                     },
                     onEqToggle = { enabled -> eqEnabled = enabled; eqEngine?.setEnabled(enabled); saveEqSettings() },
-                    onEqBandCount = { count -> eqBandCount = count; saveEqSettings() },
+                    onEqBandCount = { count -> eqBandCount = count; eqEngine?.applyGraphic(eqLevels.toList(), count); eqEngine?.setPreamp(eqPreamp); eqEngine?.applyTreble(dspTreble); saveEqSettings() },
                     onEqPreampChange = { value -> eqPreamp = value.coerceIn(-12f, 12f); eqEngine?.setPreamp(eqPreamp); saveEqSettings() },
                     onEqBassBoostChange = { value ->
                         dspBass = value.coerceIn(0, 100)
