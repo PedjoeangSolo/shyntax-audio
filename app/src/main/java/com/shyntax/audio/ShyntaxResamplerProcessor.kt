@@ -7,10 +7,15 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.ShortBuffer
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.log10
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -110,18 +115,48 @@ class ShyntaxResamplerProcessor(context: Context) : BaseAudioProcessor() {
                 val d = sample(nextNext)
                 val value = when (quality) {
                     "Cepat" -> b
-                    "Tinggi" -> {
-                        val t = fraction
-                        0.5f * ((2f * b) + (-a + c) * t +
-                            (2f * a - 5f * b + 4f * c - d) * t * t +
-                            (-a + 3f * b - 3f * c + d) * t * t * t)
-                    }
-                    else -> b + (c - b) * fraction
+                    "Tinggi" -> sincInterpolate(
+                        samples, frameCount, channels, channel, sourcePosition,
+                        min(1.0, outputRate.toDouble() / inputRate.toDouble()) * 0.94, 12
+                    )
+                    else -> sincInterpolate(
+                        samples, frameCount, channels, channel, sourcePosition,
+                        min(1.0, outputRate.toDouble() / inputRate.toDouble()) * 0.94, 4
+                    )
                 }
                 output.putShort(value.toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort())
             }
         }
         output.flip()
         inputBuffer.position(inputBuffer.limit())
+    }
+
+    private fun sincInterpolate(
+        samples: ShortBuffer,
+        frameCount: Int,
+        channels: Int,
+        channel: Int,
+        position: Double,
+        cutoff: Double,
+        radius: Int
+    ): Float {
+        val center = floor(position).toInt()
+        val firstFrame = center - radius + 1
+        var weighted = 0.0
+        var weightTotal = 0.0
+        for (tap in 0 until radius * 2) {
+            val frame = firstFrame + tap
+            val distance = position - frame
+            if (abs(distance) >= radius) continue
+            val x = 2.0 * cutoff * distance
+            val sinc = if (abs(x) < 1e-9) 1.0 else sin(PI * x) / (PI * x)
+            val window = 0.5 + 0.5 * cos(PI * distance / radius)
+            val weight = 2.0 * cutoff * sinc * window
+            val safeFrame = frame.coerceIn(0, frameCount - 1)
+            weighted += samples.get(safeFrame * channels + channel) * weight
+            weightTotal += weight
+        }
+        return if (abs(weightTotal) > 1e-9) (weighted / weightTotal).toFloat()
+            else samples.get(center.coerceIn(0, frameCount - 1) * channels + channel).toFloat()
     }
 }
