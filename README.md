@@ -14,6 +14,7 @@ Native Android music player built with Kotlin, Jetpack Compose and AndroidX Medi
 - Playback through Media3 ExoPlayer and MediaSessionService.
 - Play/pause, next/previous and seek controls.
 - Persistent library, Songs/Albums/Artists, search, sorting and favorites.
+- Modern SHYNTAX graphic EQ interface with 31-point controls, frequency-curve preview, preamp, Bass Boost, built-in presets and saved custom presets.
 - Native playback-session graphic equalizer and parametric controls mapped to Android audio effects.
 - Bass Boost, treble shaping, stereo width, loudness and preset reverb where supported.
 - Live visualizer: Waveform, Spectrum, Circular, Oscilloscope and Particles.
@@ -38,7 +39,7 @@ The player uses Media3/Android platform extractors. Common formats supported by 
 - Android may resample audio through the system mixer. DSP, EQ, tempo and pitch processing also alter the signal; bit-perfect output must not be claimed while those effects are active.
 - Actual Hi-Res playback depends on source file, decoder, Android audio path, device hardware and output DAC. Validate using the target device and DAC.
 - PCM bit depth is often not exposed for compressed source formats; the app displays "not reported" rather than guessing.
-- The Android Visualizer and Equalizer are device/ROM dependent. The 10/31-band UI maps to bands exposed by Android and is not a 31-independent-biquad software engine.
+- The Android Visualizer and Equalizer are device/ROM dependent. The 10/31-band UI maps its control curve onto bands exposed by Android and is not a 31-independent-biquad software engine. Preamp gain is applied as an offset to the mapped EQ curve; Bass Boost uses Android's optional playback-session effect.
 - Lyrics auto-read remains limited to MP3 ID3v2 USLT/TXXX and FLAC Vorbis Comment LYRICS; manual LRC/TXT import remains available.
 
 ## v1.0.0 music scanning and optimization notes
