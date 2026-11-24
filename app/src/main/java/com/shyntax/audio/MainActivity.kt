@@ -81,6 +81,8 @@ class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private val tracks = mutableStateListOf<Track>()
     private val recentTrackUris = mutableStateListOf<String>()
+    private var abRepeatStart by mutableStateOf<Long?>(null)
+    private var abRepeatEnd by mutableStateOf<Long?>(null)
     private var currentTitle by mutableStateOf("Belum ada lagu")
     private var playing by mutableStateOf(false)
     private var position by mutableLongStateOf(0L)
@@ -213,6 +215,8 @@ class MainActivity : ComponentActivity() {
                 }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     currentTrackIndex = controller?.currentMediaItemIndex ?: 0
+                    abRepeatStart = null
+                    abRepeatEnd = null
                     tracks.getOrNull(currentTrackIndex)?.let { recordPlayedTrack(it.uri) }
                     AudioAnalysisState.reset()
                     loadLyricsForCurrentTrack()
@@ -232,6 +236,12 @@ class MainActivity : ComponentActivity() {
                 controller?.let { player ->
                     position = player.currentPosition.coerceAtLeast(0L)
                     duration = player.duration.takeIf { it > 0 } ?: 0L
+                    val loopStart = abRepeatStart
+                    val loopEnd = abRepeatEnd
+                    if (player.isPlaying && loopStart != null && loopEnd != null && player.currentPosition >= loopEnd) {
+                        player.seekTo(loopStart)
+                        position = loopStart
+                    }
                 }
                 delay(400)
             }
@@ -259,6 +269,10 @@ class MainActivity : ComponentActivity() {
                     onNext = { controller?.seekToNextMediaItem() },
                     onPrevious = { controller?.seekToPreviousMediaItem() },
                     onSeek = { controller?.seekTo(it) },
+                    abRepeatStart = abRepeatStart, abRepeatEnd = abRepeatEnd,
+                    onSetAbStart = { abRepeatStart = controller?.currentPosition?.coerceAtLeast(0L); abRepeatEnd = null },
+                    onSetAbEnd = { val now = controller?.currentPosition?.coerceAtLeast(0L); if (abRepeatStart != null && now != null && now > abRepeatStart!!) abRepeatEnd = now },
+                    onClearAbRepeat = { abRepeatStart = null; abRepeatEnd = null },
                     showLyricsControls = showLyricsControls, onShowLyricsControls = { showLyricsControls = it },
                     lyricsText = lyricsText, playbackSpeed = playbackSpeed, pitchSemitones = pitchSemitones,
                     onImportLyrics = { lyricsPicker.launch(arrayOf("text/*", "application/octet-stream")) },
@@ -685,6 +699,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AudioHome(
     tracks: List<Track>, recentTrackUris: List<String>, title: String, playing: Boolean, position: Long, duration: Long,
+    abRepeatStart: Long?, abRepeatEnd: Long?, onSetAbStart: () -> Unit, onSetAbEnd: () -> Unit, onClearAbRepeat: () -> Unit,
     onImport: () -> Unit, scanStatus: String, onScan: () -> Unit,
     onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
@@ -1066,7 +1081,14 @@ private fun AudioHome(
                 Text(timeLabel(position), color = Color(0xFF9EADBC), fontSize = 12.sp)
                 Text(timeLabel(duration), color = Color(0xFF9EADBC), fontSize = 12.sp)
             }
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(onClick = onSetAbStart, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) { Text(if (abRepeatStart == null) "A • SET" else "A • ${timeLabel(abRepeatStart!!)}", color = Ice, fontSize = 10.sp) }
+                TextButton(onClick = onSetAbEnd, enabled = abRepeatStart != null && position > (abRepeatStart ?: Long.MAX_VALUE), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) { Text(if (abRepeatEnd == null) "B • SET" else "B • ${timeLabel(abRepeatEnd!!)}", color = Ice, fontSize = 10.sp) }
+                Text(if (abRepeatStart != null && abRepeatEnd != null) "A–B REPEAT ON" else "A–B REPEAT", color = if (abRepeatEnd != null) Ice else MutedText, fontSize = 9.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = onClearAbRepeat, enabled = abRepeatStart != null || abRepeatEnd != null, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)) { Text("Hapus", color = Color(0xFFFF9E9E), fontSize = 10.sp) }
+            }
+            Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(onClick = { shuffleEnabled = !shuffleEnabled }) {
