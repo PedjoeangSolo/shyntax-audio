@@ -50,7 +50,7 @@ Roadmap ini menjadi daftar kerja resmi. Status "planned" berarti belum diimpleme
 - [ ] Metadata editor dengan SAF dan penulisan tag yang aman
 - [ ] Duplicate detection berdasarkan metadata lalu fingerprint opsional
 - [ ] Smart playlists dan rating
-- [ ] Listening history/statistics
+- [x] Listening history (up to 50 recently played tracks, locally persisted)\n- [ ] Listening statistics (play counts and listening time)
 - [ ] Folder browser dan recently added
 - [ ] Manual album artwork picker
 
