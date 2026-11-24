@@ -19,6 +19,10 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val renderersFactory = object : DefaultRenderersFactory(this) {
+            init {
+                // Use FFmpeg when the Android platform decoder cannot handle a format such as ALAC.
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            }
             override fun buildAudioSink(
                 context: Context,
                 enableFloatOutput: Boolean,
