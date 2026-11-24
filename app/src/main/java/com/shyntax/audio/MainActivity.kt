@@ -307,7 +307,8 @@ class MainActivity : ComponentActivity() {
                 val projection = arrayOf(
                     MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE,
                     MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.ALBUM,
-                    MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.MIME_TYPE
+                    MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.MIME_TYPE,
+                    MediaStore.Audio.Media.DISPLAY_NAME
                 )
                 val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
                 contentResolver.query(collection, projection, null, null,
@@ -318,13 +319,17 @@ class MainActivity : ComponentActivity() {
                     val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
                     val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                     val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+                    val displayNameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
                     while (cursor.moveToNext()) {
                         val mime = cursor.getString(mimeCol).orEmpty()
                         if (mime.isNotBlank() && !mime.startsWith("audio/")) continue
                         val uri = Uri.withAppendedPath(collection, cursor.getLong(idCol).toString())
                         result.add(Track(
                             uri = uri,
-                            title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() } ?: "Audio",
+                            title = cursor.getString(titleCol)
+                                ?.takeIf { it.isNotBlank() && it != "<unknown>" }
+                                ?: cursor.getString(displayNameCol)?.substringBeforeLast('.', missingDelimiterValue = "")
+                                    ?.takeIf { it.isNotBlank() } ?: "Audio",
                             artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Artis tidak diketahui",
                             album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Album tidak diketahui",
                             durationMs = cursor.getLong(durationCol).coerceAtLeast(0L)
