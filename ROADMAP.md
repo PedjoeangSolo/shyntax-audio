@@ -1,3 +1,4 @@
+- [x] Integrate Media3 FFmpeg decoder with ALAC enabled in CI (v1.3.2; device playback verification pending).
 # SHYNTAX AUDIO — Product Roadmap
 
 Roadmap ini menjadi daftar kerja resmi. Status "planned" berarti belum diimplementasikan; status "implemented" tetap memerlukan pengujian perangkat sebelum dianggap tervalidasi.
