@@ -19,11 +19,11 @@ Roadmap ini menjadi daftar kerja resmi. Status "planned" berarti belum diimpleme
 - Backup & restore preferences/library metadata
 
 ## Tahap 1 — UI/UX Hi-Fi Refresh
-- [ ] Redesain Now Playing, library, dan navigasi
+- [x] Perapian awal Now Playing dan Library (1.3.1); redesain navigasi menyeluruh masih perlu dilanjutkan
 - [ ] Ringkasan format sumber dan perangkat output
 - [ ] Quick controls untuk EQ, DSP, visualizer, analyzer
 - [ ] Empty/loading/error states yang konsisten
-- [ ] Accessibility, ukuran layar kecil, dan dark theme checks
+- [ ] Accessibility, ukuran layar kecil, dan dark theme checks (perlu uji perangkat)
 
 ## Tahap 2 — Audio Diagnostics
 - [ ] Audio output route change listener dan refresh otomatis
