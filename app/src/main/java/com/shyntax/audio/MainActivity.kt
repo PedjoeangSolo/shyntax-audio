@@ -1126,7 +1126,7 @@ private fun AudioHome(
                     }
                     Shortcut(Icons.Default.GraphicEq, "Visualizer") { onShowVisualizer(true) }
                     Spacer(Modifier.width(7.dp))
-                    Shortcut(Icons.Default.Timer, "Timer") { onShowLyricsControls(true) }
+                    Shortcut(Icons.Default.Lyrics, "Lirik / Tempo") { onShowLyricsControls(true) }
                     Spacer(Modifier.width(7.dp))
                     Shortcut(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
                         "Repeat", { onCycleRepeat() }, repeatMode != Player.REPEAT_MODE_OFF)
