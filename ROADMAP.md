@@ -1,6 +1,9 @@
 - [x] Integrate Media3 FFmpeg decoder with ALAC enabled in CI (v1.3.2; device playback verification pending).
 # SHYNTAX AUDIO — Product Roadmap
 
+Update v1.5.0: tata letak Now Playing responsif terhadap tinggi layar dan mini-player pustaka kini memiliki kontrol Shuffle/Repeat. Jalur playback dan decoder FFmpeg tidak diubah.
+
+
 Roadmap ini menjadi daftar kerja resmi. Status "planned" berarti belum diimplementasikan; status "implemented" tetap memerlukan pengujian perangkat sebelum dianggap tervalidasi.
 
 ## Prinsip
@@ -21,8 +24,8 @@ Roadmap ini menjadi daftar kerja resmi. Status "planned" berarti belum diimpleme
 
 ## Tahap 1 — UI/UX Hi-Fi Refresh
 - [x] Refresh visual Now Playing dan Library (1.4.0); navigasi utama masih memakai alur yang sama
-- [ ] Ringkasan format sumber dan perangkat output
-- [ ] Quick controls untuk EQ, DSP, visualizer, analyzer
+- [x] Ringkasan format sumber dan perangkat output (1.4.0)
+- [x] Quick controls untuk EQ, DSP, visualizer, analyzer, lirik, dan output (1.5.0)
 - [ ] Empty/loading/error states yang konsisten
 - [ ] Accessibility, ukuran layar kecil, dan dark theme checks (perlu uji perangkat)
 
