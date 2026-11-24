@@ -938,20 +938,26 @@ private fun AudioHome(
             }
         } else if (tab in listOf("Album", "Artis") && groupFilter == null && !favoritesOnly) {
             val groups = if (tab == "Album") tracks.groupBy { it.album } else tracks.groupBy { it.artist }
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(groups.keys.sorted(), key = { it }) { name ->
-                    val groupTracks = groups[name].orEmpty()
-                    Surface(color = Panel, shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth().clickable { groupFilter = name }) {
-                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(if (tab == "Album") Icons.Default.Album else Icons.Default.Person, null, tint = Ice)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(name, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                Text("${groupTracks.size} lagu", color = Color.LightGray, fontSize = 12.sp)
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(groups.keys.sorted().chunked(2)) { rowNames ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowNames.forEach { name ->
+                            val groupTracks = groups[name].orEmpty()
+                            Surface(color = Color(0xFF121E2D), shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f).clickable { groupFilter = name }) {
+                                Column(Modifier.padding(10.dp)) {
+                                    Box(Modifier.fillMaxWidth().aspectRatio(1f).background(
+                                        androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF243D57), Color(0xFF172638), Color(0xFF263B55))),
+                                        RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+                                        Icon(if (tab == "Album") Icons.Default.Album else Icons.Default.Person, null, tint = Ice, modifier = Modifier.size(48.dp))
+                                    }
+                                    Spacer(Modifier.height(9.dp))
+                                    Text(name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text("${groupTracks.size} lagu", color = MutedText, fontSize = 11.sp)
+                                }
                             }
-                            Icon(Icons.Default.ChevronRight, null, tint = Ice)
                         }
+                        if (rowNames.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
@@ -962,22 +968,20 @@ private fun AudioHome(
                 }
                 items(visibleTracks, key = { it.value.uri.toString() }) { indexed ->
                     val track = indexed.value
-                    Surface(color = Panel, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                        Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.MusicNote, null, tint = Ice)
-                            Spacer(Modifier.width(10.dp))
-                            Column(Modifier.weight(1f).clickable { onSelect(indexed.index) }.padding(vertical = 7.dp)) {
+                    Surface(color = Color(0xFF111C2A), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(48.dp).background(
+                                androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF24435B), Color(0xFF182638))), RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = Ice, modifier = Modifier.size(25.dp)) }
+                            Spacer(Modifier.width(11.dp))
+                            Column(Modifier.weight(1f).clickable { onSelect(indexed.index) }.padding(vertical = 5.dp)) {
                                 Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                Text("${track.artist} • ${track.album}", color = Color.LightGray, fontSize = 11.sp, maxLines = 1)
+                                Text("${track.artist}  •  ${track.album}", color = MutedText, fontSize = 11.sp, maxLines = 1)
                             }
                             IconButton(onClick = { onFavorite(indexed.index) }) {
-                                Icon(if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                    "Favorit", tint = if (track.isFavorite) Ice else Color.LightGray)
+                                Icon(if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Favorit", tint = if (track.isFavorite) Ice else Color.LightGray)
                             }
-                            IconButton(onClick = { onSelect(indexed.index) }) {
-                                Icon(Icons.Default.PlayArrow, "Putar", tint = Ice)
-                            }
+                            IconButton(onClick = { onSelect(indexed.index) }) { Icon(Icons.Default.PlayArrow, "Putar", tint = Ice) }
                         }
                     }
                 }
