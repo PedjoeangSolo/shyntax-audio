@@ -120,7 +120,8 @@ class MainActivity : ComponentActivity() {
     private var dspReverb by mutableStateOf("Off")
     private val eqLevels = mutableStateListOf<Float>().apply { repeat(31) { add(0f) } }
     private var eqEnabled by mutableStateOf(false)
-    private var eqBandCount by mutableIntStateOf(10)
+    private var eqPreamp by mutableFloatStateOf(0f)
+    private var eqBandCount by mutableIntStateOf(31)
     private var showEqualizer by mutableStateOf(false)
     private var showHiResDialog by mutableStateOf(false)
     private var showBackupDialog by mutableStateOf(false)
@@ -328,8 +329,21 @@ class MainActivity : ComponentActivity() {
                             .putInt("bass", bass).putInt("treble", treble).putInt("width", width)
                             .putInt("loudness", loudness).putString("reverb", reverb).apply()
                     },
-                    onEqToggle = { enabled -> eqEnabled = enabled; eqEngine?.setEnabled(enabled) },
-                    onEqBandCount = { count -> eqBandCount = count },
+                    onEqToggle = { enabled -> eqEnabled = enabled; eqEngine?.setEnabled(enabled); saveEqSettings() },
+                    onEqBandCount = { count -> eqBandCount = count; saveEqSettings() },
+                    onEqPreampChange = { value -> eqPreamp = value.coerceIn(-12f, 12f); eqEngine?.setPreamp(eqPreamp); saveEqSettings() },
+                    onEqBassBoostChange = { value ->
+                        dspBass = value.coerceIn(0, 100)
+                        dspEngine?.apply(dspBass, dspWidth, dspLoudness, dspReverb)
+                        getSharedPreferences("shyntax_dsp", MODE_PRIVATE).edit().putInt("bass", dspBass).apply()
+                    },
+                    onEqCustomPresetApply = { values ->
+                        values.take(31).forEachIndexed { i, v -> eqLevels[i] = v.coerceIn(-12f, 12f) }
+                        eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
+                        eqEngine?.setPreamp(eqPreamp)
+                        eqEngine?.applyTreble(dspTreble)
+                        saveEqSettings()
+                    },
                     onEqChange = { index, value ->
                         if (index in eqLevels.indices) eqLevels[index] = value
                         eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
@@ -343,10 +357,19 @@ class MainActivity : ComponentActivity() {
                             "Vocal" -> listOf(-2f,-1f,0f,2f,3f,3f,2f,1f,0f,-1f)
                             "Rock" -> listOf(4f,3f,1f,-1f,-2f,1f,3f,4f,4f,3f)
                             "Jazz" -> listOf(3f,2f,1f,2f,-1f,-1f,0f,1f,2f,3f)
+                            "Pop" -> listOf(-1f,1f,3f,2f,0f,1f,2f,2f,1f,0f)
+                            "Classical" -> listOf(4f,3f,2f,1f,-1f,-1f,0f,2f,3f,4f)
                             else -> List(10) { 0f }
                         }
-                        for (i in 0 until 31) eqLevels[i] = if (eqBandCount == 10) values[(i * 9 / 30).coerceIn(0,9)] else values[(i * 9 / 30).coerceIn(0,9)]
+                        for (i in 0 until 31) {
+                            val scaled = i * 9f / 30f
+                            val low = scaled.toInt().coerceIn(0, 9)
+                            val high = (low + 1).coerceAtMost(9)
+                            val fraction = scaled - low
+                            eqLevels[i] = values[low] + (values[high] - values[low]) * fraction
+                        }
                         eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
+                        eqEngine?.setPreamp(eqPreamp)
                         eqEngine?.applyTreble(dspTreble)
                         saveEqSettings()
                     },
@@ -540,7 +563,10 @@ class MainActivity : ComponentActivity() {
             dspEngine?.apply(dspBass, dspWidth, dspLoudness, dspReverb)
             val prefs = getSharedPreferences("shyntax_eq", MODE_PRIVATE)
             eqEnabled = prefs.getBoolean("enabled", false)
-            eqBandCount = prefs.getInt("band_count", 10).coerceIn(10, 31)
+            eqBandCount = 31
+            eqPreamp = prefs.getFloat("preamp", 0f).coerceIn(-12f, 12f)
+            prefs.edit().putInt("band_count", 31).apply()
+            eqEngine?.setPreamp(eqPreamp)
             val saved = prefs.getString("levels", null)?.split(",")?.mapNotNull { it.toFloatOrNull() }
             if (saved != null && saved.size == 31) saved.forEachIndexed { i, v -> eqLevels[i] = v.coerceIn(-12f, 12f) }
             eqEngine?.applyGraphic(eqLevels.toList(), eqBandCount)
@@ -553,6 +579,7 @@ class MainActivity : ComponentActivity() {
         getSharedPreferences("shyntax_eq", MODE_PRIVATE).edit()
             .putBoolean("enabled", eqEnabled)
             .putInt("band_count", eqBandCount)
+            .putFloat("preamp", eqPreamp)
             .putString("levels", eqLevels.joinToString(","))
             .apply()
     }
@@ -744,6 +771,8 @@ private fun AudioHome(
     dspBass: Int, dspTreble: Int, dspWidth: Int, dspLoudness: Int, dspReverb: String,
     onDspChange: (Int, Int, Int, Int, String) -> Unit,
     onShowEqualizer: (Boolean) -> Unit, onEqToggle: (Boolean) -> Unit, onEqBandCount: (Int) -> Unit,
+    onEqPreampChange: (Float) -> Unit, onEqBassBoostChange: (Int) -> Unit,
+    onEqCustomPresetApply: (List<Float>) -> Unit,
     onEqChange: (Int, Float) -> Unit, onEqPreset: (String) -> Unit,
     onParametricApply: (List<Float>, List<Float>, List<Float>) -> Unit
 ) {
@@ -814,7 +843,9 @@ private fun AudioHome(
             levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,
             onDismiss = { onShowEqualizer(false) }, onEnabledChange = onEqToggle,
             onBandCountChange = onEqBandCount, onBandChange = onEqChange,
-            onPreset = onEqPreset, onParametricApply = onParametricApply
+            preamp = eqPreamp, bassBoost = dspBass,
+            onPreampChange = onEqPreampChange, onBassBoostChange = onEqBassBoostChange,
+            onPreset = onEqPreset, onCustomPresetApply = onEqCustomPresetApply, onParametricApply = onParametricApply
         )
     }
     if (showLibrary) {
