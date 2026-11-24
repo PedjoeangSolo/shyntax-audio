@@ -8,6 +8,8 @@ import android.media.MediaMetadataRetriever
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.AudioManager
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.File
@@ -17,6 +19,7 @@ import java.net.URLEncoder
 import org.json.JSONObject
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
 import android.provider.OpenableColumns
 import android.provider.MediaStore
 import androidx.activity.ComponentActivity
@@ -117,6 +120,7 @@ class MainActivity : ComponentActivity() {
     private var currentAudioInfo by mutableStateOf(AudioFileInfo())
     private var currentArtwork by mutableStateOf<Bitmap?>(null)
     private var audioOutputs by mutableStateOf<List<AudioOutputInfo>>(emptyList())
+    private var outputDeviceCallback: AudioDeviceCallback? = null
     private var scanStatus by mutableStateOf("Menyiapkan pemindaian musik…")
     private val musicPermissionLauncher = registerForActivityResult(RequestPermission()) { granted ->
         if (granted) scanMediaLibrary() else scanStatus = "Izin musik ditolak. Gunakan Tambah Lagu untuk memilih file manual."
@@ -168,6 +172,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         restoreLibrary()
+        val outputManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        outputDeviceCallback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                refreshAudioInfo()
+            }
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                refreshAudioInfo()
+            }
+        }
+        outputManager.registerAudioDeviceCallback(outputDeviceCallback, Handler(mainLooper))
+        refreshAudioInfo()
         val visualPrefs = getSharedPreferences("shyntax_visualizer", MODE_PRIVATE)
         visualizerMode = visualPrefs.getString("mode", "Waveform") ?: "Waveform"
         visualizerFps = visualPrefs.getInt("fps", 30).coerceIn(15, 60)
@@ -630,6 +645,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        outputDeviceCallback?.let {
+            (getSystemService(AUDIO_SERVICE) as AudioManager).unregisterAudioDeviceCallback(it)
+        }
         eqEngine?.release()
         dspEngine?.release()
         visualizerEngine?.stop()
