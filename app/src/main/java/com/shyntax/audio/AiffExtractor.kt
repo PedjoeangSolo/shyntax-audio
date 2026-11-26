@@ -224,7 +224,7 @@ class AiffExtractor : Extractor {
         val offset = header.readUnsignedInt32BigEndian(0)
         dataStartPosition = chunkStart + SSND_HEADER_SIZE_BYTES + offset
         dataEndPosition = chunkStart + chunkSize
-        if (dataEndPosition <= dataStartPosition && input.length != C.LENGTH_UNSET) {
+        if (dataEndPosition <= dataStartPosition && input.length != C.LENGTH_UNSET.toLong()) {
             // Some writers leave the SSND size unset or bogus; fall back to the stream length.
             dataEndPosition = input.length
         }
@@ -243,7 +243,7 @@ class AiffExtractor : Extractor {
 
     private fun setUpTrack(input: ExtractorInput) {
         val inputLength = input.length
-        if (inputLength != C.LENGTH_UNSET && dataEndPosition > inputLength) {
+        if (inputLength != C.LENGTH_UNSET.toLong() && dataEndPosition > inputLength) {
             dataEndPosition = inputLength
         }
         bytesPerSample = when (compressionType) {
