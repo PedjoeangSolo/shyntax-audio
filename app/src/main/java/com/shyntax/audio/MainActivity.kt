@@ -275,10 +275,13 @@ class MainActivity : ComponentActivity() {
             })
             val sessionId = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
             if (sessionId > 0) setupEqualizer(sessionId)
-            if (tracks.isNotEmpty()) playTrack(0)
+            // Keep an existing MediaSession queue intact. Restore the last track only
+            // when the service/player was recreated and its queue is empty.
+            if (controller?.mediaItemCount == 0) restoreLastPlayback()
         }, MoreExecutors.directExecutor())
 
         lifecycleScope.launch {
+            var lastPersistAt = 0L
             while (isActive) {
                 controller?.let { player ->
                     position = player.currentPosition.coerceAtLeast(0L)
@@ -288,6 +291,11 @@ class MainActivity : ComponentActivity() {
                     if (player.isPlaying && loopStart != null && loopEnd != null && player.currentPosition >= loopEnd) {
                         player.seekTo(loopStart)
                         position = loopStart
+                    }
+                    val now = System.currentTimeMillis()
+                    if (now - lastPersistAt >= 1500L) {
+                        persistLastPlayback(player)
+                        lastPersistAt = now
                     }
                 }
                 delay(400)
@@ -576,6 +584,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun persistLastPlayback(player: Player) {
+        val uri = player.currentMediaItem?.localConfiguration?.uri?.toString() ?: return
+        getSharedPreferences("shyntax_playback_state", MODE_PRIVATE).edit()
+            .putString("last_uri", uri)
+            .putLong("last_position", player.currentPosition.coerceAtLeast(0L))
+            .putBoolean("was_playing", player.playWhenReady && player.playbackState != Player.STATE_ENDED)
+            .apply()
+    }
+
+    private fun restoreLastPlayback() {
+        val prefs = getSharedPreferences("shyntax_playback_state", MODE_PRIVATE)
+        val uriText = prefs.getString("last_uri", null) ?: return
+        val uri = runCatching { Uri.parse(uriText) }.getOrNull() ?: return
+        val savedPosition = prefs.getLong("last_position", 0L).coerceAtLeast(0L)
+        val shouldResume = prefs.getBoolean("was_playing", false)
+        val track = tracks.firstOrNull { it.uri == uri }
+        val metadata = MediaMetadata.Builder()
+            .setTitle(track?.title ?: uri.lastPathSegment ?: "SHYNTAX AUDIO")
+            .setArtist(track?.artist ?: "")
+            .setAlbumTitle(track?.album ?: "")
+            .build()
+        val item = MediaItem.Builder().setUri(uri).setMediaMetadata(metadata).build()
+        val player = controller ?: return
+        player.setMediaItem(item, savedPosition)
+        playbackQueue.clear()
+        track?.let {
+            playbackQueue.add(it)
+            currentTrackIndex = tracks.indexOfFirst { saved -> saved.uri == uri }.coerceAtLeast(0)
+            loadLyricsForCurrentTrack()
+            loadArtwork(it.uri, it.album, it.artist)
+            refreshAudioInfo(it.uri)
+        }
+        player.prepare()
+        if (shouldResume) player.play() else player.pause()
+    }
+
     private fun applyPlaybackParameters() {
         val pitch = Math.pow(2.0, pitchSemitones / 12.0).toFloat()
         controller?.playbackParameters = PlaybackParameters(playbackSpeed, pitch)
@@ -815,7 +859,13 @@ class MainActivity : ComponentActivity() {
         c.play()
     }
 
+    override fun onStop() {
+        controller?.let { persistLastPlayback(it) }
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        controller?.let { persistLastPlayback(it) }
         outputDeviceCallback?.let {
             (getSystemService(AUDIO_SERVICE) as AudioManager).unregisterAudioDeviceCallback(it)
         }
