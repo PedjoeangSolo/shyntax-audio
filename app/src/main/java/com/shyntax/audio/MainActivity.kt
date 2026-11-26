@@ -44,11 +44,13 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +82,11 @@ data class Track(
     val durationMs: Long,
     val isFavorite: Boolean = false
 )
+
+private fun formatDurationMs(ms: Long): String {
+    val totalSeconds = (ms.coerceAtLeast(0L) / 1000L).toInt()
+    return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
+}
 
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
@@ -790,6 +797,7 @@ private fun AudioHome(
     var favoritesOnly by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
     var sortBy by remember { mutableStateOf("Judul A–Z") }
+    var showSettings by remember { mutableStateOf(false) }
     var slider by remember(position) { mutableFloatStateOf(position.toFloat()) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var sleepTimerEndMs by remember { mutableLongStateOf(0L) }
@@ -859,6 +867,23 @@ private fun AudioHome(
             onPreset = onEqPreset, onCustomPresetApply = onEqCustomPresetApply, onParametricApply = onParametricApply
         )
     }
+    if (showSettings) {
+        ShyntaxSettingsDialog(
+            versionName = BuildConfig.VERSION_NAME,
+            onDismiss = { showSettings = false },
+            onOpenLibrary = { showSettings = false; showLibrary = true },
+            onSleepTimer = { showSettings = false; showSleepTimer = true },
+            onOpenEqualizer = { showSettings = false; onShowEqualizer(true) },
+            onOpenDsp = { showSettings = false; onShowDsp(true) },
+            onOpenVisualizer = { showSettings = false; onShowVisualizer(true) },
+            onOpenAudioOutput = { showSettings = false; onShowAudioOutputSettings(true) },
+            onOpenHiRes = { showSettings = false; onShowHiResDialog(true); onRefreshAudioInfo() },
+            onOpenLyrics = { showSettings = false; onShowLyricsControls(true) },
+            onScan = { showSettings = false; onScan() },
+            onImport = { showSettings = false; onImport() },
+            onOpenBackup = { showSettings = false; onShowBackupDialog(true) }
+        )
+    }
     if (showSleepTimer) {
         AlertDialog(
             onDismissRequest = { showSleepTimer = false },
@@ -910,8 +935,8 @@ private fun AudioHome(
             IconButton(onClick = { onShowAudioOutputSettings(true) }) {
                 Icon(Icons.Default.Headphones, "Pengaturan output audio", tint = Ice)
             }
-            IconButton(onClick = { onShowBackupDialog(true) }) {
-                Icon(Icons.Default.Settings, "Backup dan pengaturan", tint = Ice)
+            IconButton(onClick = { showSettings = true }) {
+                Icon(Icons.Default.Settings, "Pengaturan", tint = Ice)
             }
             Surface(color = PanelRaised, shape = RoundedCornerShape(50)) {
                 Text("v${BuildConfig.VERSION_NAME}", color = Ice, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -1055,7 +1080,7 @@ private fun AudioHome(
                             Spacer(Modifier.width(11.dp))
                             Column(Modifier.weight(1f).clickable { onSelect(indexed.index) }.padding(vertical = 5.dp)) {
                                 Text(track.title, color = if (isActiveTrack) Ice else Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                                Text("${track.artist}  •  ${track.album}", color = MutedText, fontSize = 11.sp, maxLines = 1)
+                                Text("${track.artist}  •  ${formatDurationMs(track.durationMs)}", color = MutedText, fontSize = 11.sp, maxLines = 1)
                             }
                             if (isActiveTrack) {
                                 Icon(Icons.Default.GraphicEq, "Sedang diputar", tint = Ice, modifier = Modifier.size(19.dp))
@@ -1147,6 +1172,7 @@ private fun AudioHome(
                             DropdownMenuItem(text = { Text("Visualizer") }, onClick = { menuExpanded = false; onShowVisualizer(true) })
                             DropdownMenuItem(text = { Text("Equalizer") }, onClick = { menuExpanded = false; onShowEqualizer(true) })
                             DropdownMenuItem(text = { Text("Analyzer Hi-Res") }, onClick = { menuExpanded = false; onShowHiResDialog(true); onRefreshAudioInfo() })
+                            DropdownMenuItem(text = { Text("Pengaturan") }, onClick = { menuExpanded = false; showSettings = true })
                         }
                     }
                 }
@@ -1281,6 +1307,100 @@ private fun AudioHome(
 
 
 @Composable
+private fun ShyntaxSettingsDialog(
+    versionName: String,
+    onDismiss: () -> Unit,
+    onOpenLibrary: () -> Unit,
+    onSleepTimer: () -> Unit,
+    onOpenEqualizer: () -> Unit,
+    onOpenDsp: () -> Unit,
+    onOpenVisualizer: () -> Unit,
+    onOpenAudioOutput: () -> Unit,
+    onOpenHiRes: () -> Unit,
+    onOpenLyrics: () -> Unit,
+    onScan: () -> Unit,
+    onImport: () -> Unit,
+    onOpenBackup: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Panel,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("SHYNTAX", color = Ice, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Text("Pengaturan", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Pemutaran, audio, pustaka, dan cadangan", color = MutedText, fontSize = 11.sp)
+            }
+        },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                SettingsSection("PEMUTARAN") {
+                    SettingsRow(Icons.Default.QueueMusic, "Pustaka & Daftar Putar", "Jelajahi lagu, album, artis, dan riwayat", onOpenLibrary)
+                    SettingsRow(Icons.Default.Timer, "Timer Tidur", "Hentikan pemutaran secara otomatis", onSleepTimer)
+                }
+                SettingsSection("AUDIO") {
+                    SettingsRow(Icons.Default.Tune, "Equalizer", "EQ grafis 31 band, parametrik, dan preset", onOpenEqualizer)
+                    SettingsRow(Icons.Default.GraphicEq, "DSP Lanjutan", "Bass, treble, stereo width, dan reverb", onOpenDsp)
+                    SettingsRow(Icons.Default.Waves, "Visualizer", "Waveform, spektrum, sirkular, dan partikel", onOpenVisualizer)
+                    SettingsRow(Icons.Default.Headphones, "Output Audio", "Driver, resampler, dan format sampel", onOpenAudioOutput)
+                    SettingsRow(Icons.Default.Info, "Analyzer Hi-Res", "Info file, analisis PCM, perangkat output", onOpenHiRes)
+                }
+                SettingsSection("PUSTAKA") {
+                    SettingsRow(Icons.Default.Refresh, "Pindai Ulang", "Cari file audio baru di perangkat", onScan)
+                    SettingsRow(Icons.Default.Add, "Tambah Lagu", "Impor file audio secara manual", onImport)
+                }
+                SettingsSection("LIRIK") {
+                    SettingsRow(Icons.Default.Lyrics, "Lirik, Tempo & Pitch", "Lirik tersinkron, kecepatan, dan nada", onOpenLyrics)
+                }
+                SettingsSection("CADANGAN") {
+                    SettingsRow(Icons.Default.Settings, "Backup & Pemulihan", "Ekspor dan impor pengaturan (ZIP)", onOpenBackup)
+                }
+                SettingsSection("TENTANG") {
+                    Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.MusicNote, null, tint = Ice, modifier = Modifier.size(21.dp))
+                            Spacer(Modifier.width(11.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("SHYNTAX AUDIO", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Pemutar musik lokal berbasis Media3", color = MutedText, fontSize = 10.sp)
+                            }
+                            Text("v$versionName", color = Ice, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup", color = Ice) } }
+    )
+}
+
+@Composable
+private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(title, color = Ice, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp)
+        content()
+    }
+}
+
+@Composable
+private fun SettingsRow(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Ice, modifier = Modifier.size(21.dp))
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, color = MutedText, fontSize = 10.sp)
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = MutedText, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
 private fun TrackArtwork(uri: Uri, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val bitmap by produceState<Bitmap?>(initialValue = null, key1 = uri) {
@@ -1349,8 +1469,8 @@ private fun ShyntaxBottomBar(
             label = { Text("Pustaka") },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF07131E),
-                selectedTextColor = Color(0xFF69D8FF),
-                indicatorColor = Color(0xFF69D8FF),
+                selectedTextColor = Color(0xFF62D9FF),
+                indicatorColor = Color(0xFF62D9FF),
                 unselectedIconColor = Color(0xFF91A5B8),
                 unselectedTextColor = Color(0xFF91A5B8)
             )
@@ -1362,8 +1482,8 @@ private fun ShyntaxBottomBar(
             label = { Text("Lirik") },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF07131E),
-                selectedTextColor = Color(0xFF69D8FF),
-                indicatorColor = Color(0xFF69D8FF),
+                selectedTextColor = Color(0xFF62D9FF),
+                indicatorColor = Color(0xFF62D9FF),
                 unselectedIconColor = Color(0xFF91A5B8),
                 unselectedTextColor = Color(0xFF91A5B8)
             )
@@ -1375,8 +1495,8 @@ private fun ShyntaxBottomBar(
             label = { Text("Audio") },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color(0xFF07131E),
-                selectedTextColor = Color(0xFF69D8FF),
-                indicatorColor = Color(0xFF69D8FF),
+                selectedTextColor = Color(0xFF62D9FF),
+                indicatorColor = Color(0xFF62D9FF),
                 unselectedIconColor = Color(0xFF91A5B8),
                 unselectedTextColor = Color(0xFF91A5B8)
             )

@@ -6,7 +6,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+private val OutputIce = Color(0xFF62D9FF)
+private val OutputMuted = Color(0xFF93A8BC)
 
 private val sampleRates = listOf("Otomatis", "44.1 kHz", "48 kHz", "88.2 kHz", "96 kHz", "176.4 kHz", "192 kHz", "352.8 kHz", "384 kHz")
 private val sampleFormats = listOf("Otomatis", "16 bit", "24 bit", "32 bit", "Float32")
@@ -48,18 +54,25 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = { save(); onDismiss() },
-        title = { Text("Pengaturan Output Audio") },
+        containerColor = Color(0xFF0A0D11),
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("SHYNTAX", color = OutputIce, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                Text("Pengaturan Output Audio", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Driver, resampler & format keluaran", color = OutputMuted, fontSize = 11.sp)
+            }
+        },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Driver Output", style = MaterialTheme.typography.titleSmall)
+                OutputSectionHeader("Driver Output")
                 Text("Android AudioTrack / Media3", color = MaterialTheme.colorScheme.primary)
                 Text("Driver yang benar-benar aktif saat ini adalah AudioTrack melalui Media3. AAudio dan OpenSL ES belum tersedia sebagai pilihan driver.", style = MaterialTheme.typography.bodySmall)
 
                 HorizontalDivider()
-                Text("Resampler PCM", style = MaterialTheme.typography.titleSmall)
+                OutputSectionHeader("Resampler PCM")
                 Text("Mode Otomatis mempertahankan laju sampel sumber. Mode Manual mengubah laju sampel PCM 16-bit sebelum dikirim ke AudioTrack.", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("Nonaktif", "Otomatis", "Manual").forEach { option ->
@@ -89,7 +102,7 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
                 Text("Resampler hanya memproses PCM 16-bit. Format PCM lain dan audio encoded/passthrough dilewatkan tanpa perubahan. Pengaturan diterapkan saat layanan pemutar dibuat ulang; tutup paksa aplikasi lalu buka kembali setelah mengubah mode.", style = MaterialTheme.typography.bodySmall)
 
                 HorizontalDivider()
-                Text("Nilai Sampel", style = MaterialTheme.typography.titleSmall)
+                OutputSectionHeader("Nilai Sampel")
                 Text("Preferensi laju sampel (tidak memaksa DAC)", style = MaterialTheme.typography.bodySmall)
                 sampleRates.chunked(3).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -104,7 +117,7 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
                 }
 
                 HorizontalDivider()
-                Text("Format Sampel", style = MaterialTheme.typography.titleSmall)
+                OutputSectionHeader("Format Sampel")
                 sampleFormats.chunked(3).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         row.forEach { option ->
@@ -119,6 +132,7 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
                 Text("Format keluaran aktual tetap mengikuti decoder, Android, dan perangkat audio.", style = MaterialTheme.typography.bodySmall)
 
                 HorizontalDivider()
+                OutputSectionHeader("Buffer & Penundaan")
                 Text("Ukuran Buffer: ${buffer.toInt()} ms", style = MaterialTheme.typography.titleSmall)
                 Slider(value = buffer, onValueChange = { buffer = it }, onValueChangeFinished = { save() }, valueRange = 100f..1000f, steps = 17)
                 Text("Penundaan Rekonfigurasi: ${reconfigure.toInt()} ms", style = MaterialTheme.typography.titleSmall)
@@ -127,13 +141,14 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
                 Slider(value = lyricDelay, onValueChange = { lyricDelay = it }, onValueChangeFinished = { save() }, valueRange = -1000f..1000f, steps = 39)
 
                 HorizontalDivider()
+                OutputSectionHeader("Pemutaran")
                 SettingSwitch("Tanpa DVC", "Preferensi untuk menghindari kontrol volume langsung. Perubahan jalur DVC belum diterapkan oleh mesin pemutar.", dvc) { dvc = it; save() }
                 SettingSwitch("Pengurangan Gain Headroom", "Preferensi headroom; pemrosesan gain otomatis belum dihubungkan.", headroom) { headroom = it; save() }
                 SettingSwitch("Tanpa EQ / Nada", "Simpan preferensi untuk menonaktifkan EQ. Gunakan kontrol Equalizer saat ini untuk mengubah efek yang aktif.", noEq) { noEq = it; save() }
                 SettingSwitch("Pemutaran Tanpa Jeda", "Preferensi gapless; transisi tanpa jeda khusus belum diaktifkan.", gapless) { gapless = it; save() }
 
                 HorizontalDivider()
-                Text("Catatan kompatibilitas", style = MaterialTheme.typography.titleSmall)
+                OutputSectionHeader("Catatan kompatibilitas")
                 Text("Driver aktif adalah Android AudioTrack. Resampler manual bekerja pada PCM 16-bit melalui AudioProcessor Media3. Pemilihan format sampel, ukuran buffer, DVC, dan gapless di bagian lain masih berupa preferensi dan belum mengubah jalur output. Hi-Res aktual tetap bergantung pada format sumber, Android, perangkat, dan DAC.", style = MaterialTheme.typography.bodySmall)
             }
         },
@@ -144,12 +159,17 @@ fun AudioOutputSettingsDialog(onDismiss: () -> Unit) {
 }
 
 @Composable
+private fun OutputSectionHeader(text: String) {
+    Text(text.uppercase(), color = OutputIce, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+}
+
+@Composable
 private fun SettingSwitch(title: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
             Switch(checked = checked, onCheckedChange = onCheckedChange)
         }
-        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(description, style = MaterialTheme.typography.bodySmall, color = OutputMuted)
     }
 }

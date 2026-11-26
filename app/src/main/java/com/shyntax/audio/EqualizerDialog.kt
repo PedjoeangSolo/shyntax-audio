@@ -27,7 +27,7 @@ import kotlin.math.roundToInt
 
 private val eqBlue=Color(0xFF62D9FF)
 private val eqPanel=Color(0xFF0A0D11)
-private val eqMuted=Color(0xFF8FA6BA)
+private val eqMuted=Color(0xFF93A8BC)
 private val eqFreq=listOf("20","25","31","40","50","63","80","100","125","160","200","250","315","400","500","630","800","1k","1.25k","1.6k","2k","2.5k","3.15k","4k","5k","6.3k","8k","10k","12.5k","16k","20k")
 
 @Composable

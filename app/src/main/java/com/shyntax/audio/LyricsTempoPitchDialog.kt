@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.pow
 
-private val LyricsIce = Color(0xFF69D8FF)
+private val LyricsIce = Color(0xFF62D9FF)
 private val LyricsPanel = Color(0xFF0A0D11)
 
 data class LyricLine(val timeMs: Long?, val text: String)

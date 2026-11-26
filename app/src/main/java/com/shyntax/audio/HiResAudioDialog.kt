@@ -41,10 +41,10 @@ fun HiResAudioDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Advanced Audio Analyzer", color = Color(0xFF69D8FF)) },
+        title = { Text("Advanced Audio Analyzer", color = Color(0xFF62D9FF)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                Text("INFORMASI FILE", color = Color(0xFF69D8FF), style = MaterialTheme.typography.labelMedium)
+                Text("INFORMASI FILE", color = Color(0xFF62D9FF), style = MaterialTheme.typography.labelMedium)
                 InfoRow("Codec / MIME", fileInfo.mimeType)
                 InfoRow("Profil sumber", when (fileInfo.mimeType.lowercase()) {
                     "audio/flac", "audio/alac", "audio/wav", "audio/x-wav", "audio/ape", "audio/wavpack" -> "Format lossless"
@@ -57,7 +57,7 @@ fun HiResAudioDialog(
                 InfoRow("PCM bit depth", pcmLabel(fileInfo.pcmEncoding))
                 if (fileInfo.detail.isNotBlank()) Text(fileInfo.detail, style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
                 HorizontalDivider()
-                Text("PERANGKAT OUTPUT", color = Color(0xFF69D8FF), style = MaterialTheme.typography.labelMedium)
+                Text("PERANGKAT OUTPUT", color = Color(0xFF62D9FF), style = MaterialTheme.typography.labelMedium)
                 if (outputs.isEmpty()) {
                     Text("Belum ada perangkat output yang terdeteksi.", color = Color.LightGray)
                 } else {
@@ -66,11 +66,11 @@ fun HiResAudioDialog(
                     }
                 }
                 HorizontalDivider()
-                Text("ANALISIS PCM REAL-TIME", color = Color(0xFF69D8FF), style = MaterialTheme.typography.labelMedium)
+                Text("ANALISIS PCM REAL-TIME", color = Color(0xFF62D9FF), style = MaterialTheme.typography.labelMedium)
                 InfoRow("Peak PCM", String.format("%.1f dBFS", AudioAnalysisState.peakDb))
                 InfoRow("RMS PCM", String.format("%.1f dBFS", AudioAnalysisState.rmsDb))
                 InfoRow("Sampel mendekati clipping", AudioAnalysisState.clippingSamples.toString())
-                Text("ANALISIS SUMBER", color = Color(0xFF69D8FF), style = MaterialTheme.typography.labelMedium)
+                Text("ANALISIS SUMBER", color = Color(0xFF62D9FF), style = MaterialTheme.typography.labelMedium)
                 Text(
                     when {
                         fileInfo.sampleRate == null -> "Decoder tidak melaporkan sample rate sumber."

@@ -22,7 +22,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-private val VisualIce = Color(0xFF69D8FF)
+private val VisualIce = Color(0xFF62D9FF)
 private val VisualBg = Color(0xFF000000)
 
 @Composable

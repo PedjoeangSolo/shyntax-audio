@@ -133,6 +133,7 @@ fun BackupDialog(
 ) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = androidx.compose.ui.graphics.Color(0xFF0A0D11),
         title = { androidx.compose.material3.Text("Backup & Pemulihan") },
         text = {
             androidx.compose.foundation.layout.Column(
@@ -148,7 +149,7 @@ fun BackupDialog(
                     "Setelah pemulihan, buka ulang aplikasi agar semua efek dan pengaturan diterapkan."
                 )
                 if (status.isNotBlank()) {
-                    androidx.compose.material3.Text(status, color = androidx.compose.ui.graphics.Color(0xFF69D8FF))
+                    androidx.compose.material3.Text(status, color = androidx.compose.ui.graphics.Color(0xFF62D9FF))
                 }
             }
         },
