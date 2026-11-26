@@ -959,23 +959,29 @@ private fun AudioHome(
         }
     }
 
-    val visibleTracks = tracks.withIndex().filter { (_, track) ->
-        (!favoritesOnly || track.isFavorite) &&
-            (tab != "Riwayat" || track.uri.toString() in recentTrackUris) &&
-            (groupFilter == null || when (tab) {
-                "Album" -> track.album == groupFilter
-                "Artis" -> track.artist == groupFilter
-                "Folder" -> track.folderPath == groupFilter
-                else -> true
-            }) &&
-            (query.isBlank() || track.title.contains(query, true) || track.artist.contains(query, true) || track.album.contains(query, true))
-    }.let { list ->
+    val visibleTracks = remember(tracks, recentTrackUris, tab, groupFilter, favoritesOnly, query, sortBy) {
+        val recentPositions = recentTrackUris.withIndex().associate { it.value to it.index }
+        val normalizedQuery = query.lowercase()
+        val filtered = tracks.withIndex().filter { (_, track) ->
+            (!favoritesOnly || track.isFavorite) &&
+                (tab != "Riwayat" || recentPositions.containsKey(track.uri.toString())) &&
+                (groupFilter == null || when (tab) {
+                    "Album" -> track.album == groupFilter
+                    "Artis" -> track.artist == groupFilter
+                    "Folder" -> track.folderPath == groupFilter
+                    else -> true
+                }) &&
+                (normalizedQuery.isBlank() ||
+                    track.title.lowercase().contains(normalizedQuery) ||
+                    track.artist.lowercase().contains(normalizedQuery) ||
+                    track.album.lowercase().contains(normalizedQuery))
+        }
         when (sortBy) {
-            "Judul Z–A" -> list.sortedByDescending { it.value.title.lowercase() }
-            "Artis" -> list.sortedBy { it.value.artist.lowercase() }
-            "Album" -> list.sortedBy { it.value.album.lowercase() }
-            "Riwayat" -> list.sortedBy { recentTrackUris.indexOf(it.value.uri.toString()).let { index -> if (index < 0) Int.MAX_VALUE else index } }
-            else -> list.sortedBy { it.value.title.lowercase() }
+            "Judul Z–A" -> filtered.sortedByDescending { it.value.title.lowercase() }
+            "Artis" -> filtered.sortedBy { it.value.artist.lowercase() }
+            "Album" -> filtered.sortedBy { it.value.album.lowercase() }
+            "Riwayat" -> filtered.sortedBy { recentPositions[it.value.uri.toString()] ?: Int.MAX_VALUE }
+            else -> filtered.sortedBy { it.value.title.lowercase() }
         }
     }
     val selectedFolderName = if (tab == "Folder" && groupFilter != null)
