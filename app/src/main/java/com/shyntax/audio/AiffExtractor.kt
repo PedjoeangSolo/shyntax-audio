@@ -198,17 +198,17 @@ class AiffExtractor : Extractor {
                     bitsPerSample != 24 && bitsPerSample != 32
                 ) {
                     throw ParserException.createForUnsupportedContainerFeature(
-                        "Unsupported AIFF PCM sample size: $bitsPerSample.", null)
+                        "Unsupported AIFF PCM sample size: $bitsPerSample.")
                 }
             }
             COMPRESSION_ULAW, COMPRESSION_ALAW -> {
                 if (bitsPerSample != 8) {
                     throw ParserException.createForUnsupportedContainerFeature(
-                        "Unsupported compressed AIFF sample size: $bitsPerSample.", null)
+                        "Unsupported compressed AIFF sample size: $bitsPerSample.")
                 }
             }
             else -> throw ParserException.createForUnsupportedContainerFeature(
-                "Unsupported AIFF-C compression type.", null)
+                "Unsupported AIFF-C compression type.")
         }
         commParsed = true
     }
