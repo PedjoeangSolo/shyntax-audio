@@ -995,7 +995,7 @@ private fun AudioHome(
             onOpenHiRes = { showSettings = false; onShowHiResDialog(true); onRefreshAudioInfo() },
             onOpenLyrics = { showSettings = false; onShowLyricsControls(true) },
             onScan = { showSettings = false; onScan() },
-            onChooseMusicFolder = { showSettings = false; chooseMusicFolder() },
+            onChooseMusicFolder = { showSettings = false; onChooseMusicFolder() },
             onImport = { showSettings = false; onImport() },
             onOpenBackup = { showSettings = false; onShowBackupDialog(true) }
         )
