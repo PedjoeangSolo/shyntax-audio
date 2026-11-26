@@ -80,8 +80,23 @@ data class Track(
     val artist: String,
     val album: String,
     val durationMs: Long,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val folderPath: String = "",
+    val folderName: String = ""
 )
+
+/** Folder (path + display name) containing the file at [filePath]; "" to "" when unknown. */
+private fun folderOf(filePath: String?): Pair<String, String> {
+    if (filePath.isNullOrBlank()) return "" to ""
+    val parent = File(filePath).parentFile ?: return "" to ""
+    return parent.absolutePath to (parent.name ?: "")
+}
+
+/** Same as [folderOf] but for a MediaStore RELATIVE_PATH value such as "Music/Rock/". */
+private fun folderOfRelative(relativePath: String?): Pair<String, String> {
+    val clean = relativePath?.trim('/')?.takeIf { it.isNotBlank() } ?: return "" to ""
+    return clean to clean.substringAfterLast('/')
+}
 
 private fun formatDurationMs(ms: Long): String {
     val totalSeconds = (ms.coerceAtLeast(0L) / 1000L).toInt()
@@ -91,6 +106,7 @@ private fun formatDurationMs(ms: Long): String {
 class MainActivity : ComponentActivity() {
     private var controller: MediaController? = null
     private val tracks = mutableStateListOf<Track>()
+    private val playbackQueue = mutableStateListOf<Track>()
     private val recentTrackUris = mutableStateListOf<String>()
     private var abRepeatStart by mutableStateOf<Long?>(null)
     private var abRepeatEnd by mutableStateOf<Long?>(null)
@@ -234,7 +250,10 @@ class MainActivity : ComponentActivity() {
                     repeatMode = newRepeatMode
                 }
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    currentTrackIndex = controller?.currentMediaItemIndex ?: 0
+                    val queueIndex = controller?.currentMediaItemIndex ?: 0
+                    currentTrackIndex = playbackQueue.getOrNull(queueIndex)
+                        ?.let { queueTrack -> tracks.indexOfFirst { it.uri == queueTrack.uri } }
+                        ?.takeIf { it >= 0 } ?: queueIndex
                     abRepeatStart = null
                     abRepeatEnd = null
                     tracks.getOrNull(currentTrackIndex)?.let { recordPlayedTrack(it.uri) }
@@ -288,6 +307,7 @@ class MainActivity : ComponentActivity() {
                     scanStatus = scanStatus,
                     onScan = { requestMusicScan() },
                     onSelect = { playTrack(it) },
+                    onPlayQueue = { list, position -> playFromList(list, position) },
                     onFavorite = { index ->
                         if (index in tracks.indices) {
                             tracks[index] = tracks[index].copy(isFavorite = !tracks[index].isFavorite)
@@ -404,12 +424,16 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val discovered = withContext(Dispatchers.IO) {
                 val result = mutableListOf<Track>()
-                val projection = arrayOf(
+                val projectionList = mutableListOf(
                     MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE,
                     MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.ALBUM,
                     MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.MIME_TYPE,
-                    MediaStore.Audio.Media.DISPLAY_NAME
+                    MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.DATA
                 )
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    projectionList.add(MediaStore.Audio.Media.RELATIVE_PATH)
+                }
+                val projection = projectionList.toTypedArray()
                 val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
                 contentResolver.query(collection, projection, null, null,
                     "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
@@ -420,10 +444,18 @@ class MainActivity : ComponentActivity() {
                     val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
                     val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
                     val displayNameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                    val dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
+                    val relativeCol = if (android.os.Build.VERSION.SDK_INT >= 29)
+                        cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH) else -1
                     while (cursor.moveToNext()) {
                         val mime = cursor.getString(mimeCol).orEmpty()
                         if (mime.isNotBlank() && !mime.startsWith("audio/")) continue
                         val uri = Uri.withAppendedPath(collection, cursor.getLong(idCol).toString())
+                        val folder = folderOf(if (dataCol >= 0) cursor.getString(dataCol) else null)
+                            .let { direct ->
+                                if (direct.first.isNotBlank()) direct
+                                else folderOfRelative(if (relativeCol >= 0) cursor.getString(relativeCol) else null)
+                            }
                         result.add(Track(
                             uri = uri,
                             title = cursor.getString(titleCol)
@@ -432,15 +464,25 @@ class MainActivity : ComponentActivity() {
                                     ?.takeIf { it.isNotBlank() } ?: "Audio",
                             artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Artis tidak diketahui",
                             album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Album tidak diketahui",
-                            durationMs = cursor.getLong(durationCol).coerceAtLeast(0L)
+                            durationMs = cursor.getLong(durationCol).coerceAtLeast(0L),
+                            folderPath = folder.first,
+                            folderName = folder.second
                         ))
                     }
                 }
                 result
             }
             val favorites = tracks.associate { it.uri.toString() to it.isFavorite }
+            val discoveredByUri = discovered.associateBy { it.uri.toString() }
             val merged = (tracks + discovered).distinctBy { it.uri.toString() }
-                .map { it.copy(isFavorite = favorites[it.uri.toString()] ?: it.isFavorite) }
+                .map { track ->
+                    val found = discoveredByUri[track.uri.toString()]
+                    track.copy(
+                        isFavorite = favorites[track.uri.toString()] ?: track.isFavorite,
+                        folderPath = track.folderPath.ifBlank { found?.folderPath ?: "" },
+                        folderName = track.folderName.ifBlank { found?.folderName ?: "" }
+                    )
+                }
             tracks.clear()
             tracks.addAll(merged)
             saveLibrary()
@@ -667,6 +709,12 @@ class MainActivity : ComponentActivity() {
                 ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
         }.getOrNull()?.substringBeforeLast('.', missingDelimiterValue = "")
             ?.takeIf { it.isNotBlank() } ?: "Audio"
+        // Best effort: MediaStore URIs expose DATA; SAF document URIs often do not,
+        // in which case the track simply lands in the "Tidak diketahui" folder group.
+        val folder = folderOf(runCatching {
+            contentResolver.query(uri, arrayOf(MediaStore.Audio.Media.DATA), null, null, null)
+                ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }.getOrNull())
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(this, uri)
@@ -677,9 +725,9 @@ class MainActivity : ComponentActivity() {
             val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
                 ?.takeIf { it.isNotBlank() } ?: "Album tidak diketahui"
             val length = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-            Track(uri, title, artist, album, length)
+            Track(uri, title, artist, album, length, folderPath = folder.first, folderName = folder.second)
         } catch (_: Exception) {
-            Track(uri, fileName, "Artis tidak diketahui", "Album tidak diketahui", 0L)
+            Track(uri, fileName, "Artis tidak diketahui", "Album tidak diketahui", 0L, folderPath = folder.first, folderName = folder.second)
         } finally {
             runCatching { retriever.release() }
         }
@@ -721,20 +769,35 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playTrack(index: Int) {
-        val c = controller ?: return
         if (index !in tracks.indices) return
-        currentTrackIndex = index
-        recordPlayedTrack(tracks[index].uri)
+        playQueue(tracks.toList(), index, index)
+    }
+
+    /** Play [list] (e.g. the tracks of one folder) as the queue, starting at [positionInList]. */
+    private fun playFromList(list: List<Track>, positionInList: Int) {
+        if (positionInList !in list.indices) return
+        val globalIndex = tracks.indexOfFirst { it.uri == list[positionInList].uri }
+        playQueue(list, positionInList, globalIndex)
+    }
+
+    private fun playQueue(queue: List<Track>, startIndex: Int, globalIndex: Int) {
+        val c = controller ?: return
+        if (startIndex !in queue.indices) return
+        playbackQueue.clear()
+        playbackQueue.addAll(queue)
+        currentTrackIndex = if (globalIndex in tracks.indices) globalIndex else startIndex
+        val startTrack = queue[startIndex]
+        recordPlayedTrack(startTrack.uri)
         loadLyricsForCurrentTrack()
-        tracks[index].let { loadArtwork(it.uri, it.album, it.artist) }
-        val items = tracks.map { track ->
+        loadArtwork(startTrack.uri, startTrack.album, startTrack.artist)
+        val items = queue.map { track ->
             MediaItem.Builder().setUri(track.uri)
                 .setMediaMetadata(MediaMetadata.Builder()
                     .setTitle(track.title).setArtist(track.artist).setAlbumTitle(track.album).build())
                 .build()
         }
-        c.setMediaItems(items, index, 0L)
-        refreshAudioInfo(tracks[index].uri)
+        c.setMediaItems(items, startIndex, 0L)
+        refreshAudioInfo(startTrack.uri)
         c.prepare()
         c.play()
     }
@@ -758,7 +821,7 @@ private fun AudioHome(
     onToggleShuffle: () -> Unit, onCycleRepeat: () -> Unit,
     abRepeatStart: Long?, abRepeatEnd: Long?, onSetAbStart: () -> Unit, onSetAbEnd: () -> Unit, onClearAbRepeat: () -> Unit,
     onImport: () -> Unit, scanStatus: String, onScan: () -> Unit,
-    onSelect: (Int) -> Unit, onFavorite: (Int) -> Unit,
+    onSelect: (Int) -> Unit, onPlayQueue: (List<Track>, Int) -> Unit, onFavorite: (Int) -> Unit,
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
     eqLevels: List<Float>, eqEnabled: Boolean, eqBandCount: Int, eqPreamp: Float, showEqualizer: Boolean,
     showLyricsControls: Boolean, onShowLyricsControls: (Boolean) -> Unit,
@@ -814,7 +877,12 @@ private fun AudioHome(
     val visibleTracks = tracks.withIndex().filter { (_, track) ->
         (!favoritesOnly || track.isFavorite) &&
             (tab != "Riwayat" || track.uri.toString() in recentTrackUris) &&
-            (groupFilter == null || if (tab == "Album") track.album == groupFilter else if (tab == "Artis") track.artist == groupFilter else true) &&
+            (groupFilter == null || when (tab) {
+                "Album" -> track.album == groupFilter
+                "Artis" -> track.artist == groupFilter
+                "Folder" -> track.folderPath == groupFilter
+                else -> true
+            }) &&
             (query.isBlank() || track.title.contains(query, true) || track.artist.contains(query, true) || track.album.contains(query, true))
     }.let { list ->
         when (sortBy) {
@@ -825,6 +893,9 @@ private fun AudioHome(
             else -> list.sortedBy { it.value.title.lowercase() }
         }
     }
+    val selectedFolderName = if (tab == "Folder" && groupFilter != null)
+        tracks.firstOrNull { it.folderPath == groupFilter }?.folderName?.ifBlank { "Tidak diketahui" } ?: "Tidak diketahui"
+    else ""
 
     if (showLyricsControls) {
         LyricsTempoPitchDialog(
@@ -965,7 +1036,7 @@ private fun AudioHome(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            listOf("Lagu", "Album", "Artis", "Riwayat").forEach {
+            listOf("Lagu", "Album", "Artis", "Folder", "Riwayat").forEach {
                 FilterChip(
                     selected = tab == it,
                     onClick = { tab = it; groupFilter = null; favoritesOnly = false },
@@ -1018,9 +1089,10 @@ private fun AudioHome(
         Text(
             when {
                 favoritesOnly -> "LAGU FAVORIT"
+                tab == "Folder" && groupFilter != null -> selectedFolderName.uppercase()
                 groupFilter != null -> groupFilter!!.uppercase()
                 tab == "Riwayat" -> "TERAKHIR DIPUTAR"
-                else -> when (tab) { "Album" -> "ALBUM"; "Artis" -> "ARTIS"; else -> "SEMUA LAGU" }
+                else -> when (tab) { "Album" -> "ALBUM"; "Artis" -> "ARTIS"; "Folder" -> "FOLDER"; else -> "SEMUA LAGU" }
             },
             color = Ice, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
             modifier = Modifier.padding(top = 10.dp, bottom = 8.dp)
@@ -1036,8 +1108,12 @@ private fun AudioHome(
                     Button(onClick = onImport) { Text("Pilih file audio") }
                 }
             }
-        } else if (tab in listOf("Album", "Artis") && groupFilter == null && !favoritesOnly) {
-            val groups = if (tab == "Album") tracks.groupBy { it.album } else tracks.groupBy { it.artist }
+        } else if (tab in listOf("Album", "Artis", "Folder") && groupFilter == null && !favoritesOnly) {
+            val groups = when (tab) {
+                "Album" -> tracks.groupBy { it.album }
+                "Folder" -> tracks.groupBy { it.folderPath }
+                else -> tracks.groupBy { it.artist }
+            }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(groups.keys.sorted().chunked(2)) { rowNames ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1053,11 +1129,14 @@ private fun AudioHome(
                                         Box(Modifier.fillMaxWidth().aspectRatio(1f).background(
                                             androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF14425C), Color(0xFF0A0D11), Color(0xFF123240))),
                                             RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Person, null, tint = Ice, modifier = Modifier.size(48.dp))
+                                            Icon(if (tab == "Folder") Icons.Default.Folder else Icons.Default.Person, null, tint = Ice, modifier = Modifier.size(48.dp))
                                         }
                                     }
                                     Spacer(Modifier.height(9.dp))
-                                    Text(name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text(
+                                        if (tab == "Folder") groupTracks.firstOrNull()?.folderName?.ifBlank { "Tidak diketahui" } ?: "Tidak diketahui" else name,
+                                        color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1
+                                    )
                                     Text("${groupTracks.size} lagu", color = MutedText, fontSize = 11.sp)
                                 }
                             }
@@ -1067,6 +1146,15 @@ private fun AudioHome(
                 }
             }
         } else {
+            // Inside a folder, playback queues exactly the displayed folder list;
+            // everywhere else the historical whole-library behaviour is kept.
+            val playIndexed: (IndexedValue<Track>) -> Unit = { indexed ->
+                if (tab == "Folder" && groupFilter != null) {
+                    val positionInFolder = visibleTracks.indexOfFirst { it.value.uri == indexed.value.uri }
+                    if (positionInFolder >= 0) onPlayQueue(visibleTracks.map { it.value }, positionInFolder)
+                    else onSelect(indexed.index)
+                } else onSelect(indexed.index)
+            }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (groupFilter != null) item {
                     TextButton(onClick = { groupFilter = null }) { Icon(Icons.Default.ArrowBack, null); Text("Kembali ke ${tab.lowercase()}") }
@@ -1078,7 +1166,7 @@ private fun AudioHome(
                         Row(Modifier.padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                             TrackArtwork(track.uri, Modifier.size(48.dp))
                             Spacer(Modifier.width(11.dp))
-                            Column(Modifier.weight(1f).clickable { onSelect(indexed.index) }.padding(vertical = 5.dp)) {
+                            Column(Modifier.weight(1f).clickable { playIndexed(indexed) }.padding(vertical = 5.dp)) {
                                 Text(track.title, color = if (isActiveTrack) Ice else Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
                                 Text("${track.artist}  •  ${formatDurationMs(track.durationMs)}", color = MutedText, fontSize = 11.sp, maxLines = 1)
                             }
@@ -1089,7 +1177,7 @@ private fun AudioHome(
                             IconButton(onClick = { onFavorite(indexed.index) }) {
                                 Icon(if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Favorit", tint = if (track.isFavorite) Ice else Color.LightGray)
                             }
-                            IconButton(onClick = { onSelect(indexed.index) }) { Icon(Icons.Default.PlayArrow, "Putar", tint = Ice) }
+                            IconButton(onClick = { playIndexed(indexed) }) { Icon(Icons.Default.PlayArrow, "Putar", tint = Ice) }
                         }
                     }
                 }
@@ -1338,7 +1426,7 @@ private fun ShyntaxSettingsDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 SettingsSection("PEMUTARAN") {
-                    SettingsRow(Icons.Default.QueueMusic, "Pustaka & Daftar Putar", "Jelajahi lagu, album, artis, dan riwayat", onOpenLibrary)
+                    SettingsRow(Icons.Default.QueueMusic, "Pustaka & Daftar Putar", "Jelajahi lagu, album, artis, folder, dan riwayat", onOpenLibrary)
                     SettingsRow(Icons.Default.Timer, "Timer Tidur", "Hentikan pemutaran secara otomatis", onSleepTimer)
                 }
                 SettingsSection("AUDIO") {
