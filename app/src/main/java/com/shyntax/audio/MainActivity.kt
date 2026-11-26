@@ -147,6 +147,7 @@ class MainActivity : ComponentActivity() {
     private var dspWidth by mutableIntStateOf(0)
     private var dspLoudness by mutableIntStateOf(0)
     private var dspReverb by mutableStateOf("Off")
+    private var limiterEnabled by mutableStateOf(false)
     private val eqLevels = mutableStateListOf<Float>().apply { repeat(31) { add(0f) } }
     private var eqEnabled by mutableStateOf(false)
     private var eqPreamp by mutableFloatStateOf(0f)
@@ -212,6 +213,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         restoreLibrary()
         restorePlayHistory()
+        limiterEnabled = getSharedPreferences("shyntax_dsp", MODE_PRIVATE).getBoolean("limiter_enabled", false)
         val outputManager = getSystemService(AUDIO_SERVICE) as AudioManager
         outputDeviceCallback = object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
@@ -848,6 +850,7 @@ private fun AudioHome(
     onStartVisualizer: () -> Unit, onStopVisualizer: () -> Unit,
     onVisualizerMode: (String) -> Unit, onVisualizerFps: (Int) -> Unit, onVisualizerQuality: (Int) -> Unit,
     dspBass: Int, dspTreble: Int, dspWidth: Int, dspLoudness: Int, dspReverb: String,
+    limiterEnabled: Boolean, onLimiterChange: (Boolean) -> Unit,
     onDspChange: (Int, Int, Int, Int, String) -> Unit,
     onShowEqualizer: (Boolean) -> Unit, onEqToggle: (Boolean) -> Unit, onEqBandCount: (Int) -> Unit,
     onEqPreampChange: (Float) -> Unit, onEqBassBoostChange: (Int) -> Unit,
@@ -942,7 +945,7 @@ private fun AudioHome(
             levels = eqLevels, enabled = eqEnabled, bandCount = eqBandCount,
             onDismiss = { onShowEqualizer(false) }, onEnabledChange = onEqToggle,
             onBandCountChange = onEqBandCount, onBandChange = onEqChange,
-            preamp = eqPreamp, bassBoost = dspBass,
+            preamp = eqPreamp, bassBoost = dspBass, limiterEnabled = limiterEnabled, onLimiterChange = onLimiterChange,
             onPreampChange = onEqPreampChange, onBassBoostChange = onEqBassBoostChange,
             onPreset = onEqPreset, onCustomPresetApply = onEqCustomPresetApply, onParametricApply = onParametricApply
         )
