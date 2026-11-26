@@ -355,6 +355,8 @@ class MainActivity : ComponentActivity() {
                     onVisualizerFps = { visualizerFps = it; getSharedPreferences("shyntax_visualizer", MODE_PRIVATE).edit().putInt("fps", it).apply(); visualizerEngine?.setFrameRate(it) },
                     onVisualizerQuality = { visualizerQuality = it; getSharedPreferences("shyntax_visualizer", MODE_PRIVATE).edit().putInt("quality", it).apply() },
                     dspBass = dspBass, dspTreble = dspTreble, dspWidth = dspWidth, dspLoudness = dspLoudness, dspReverb = dspReverb,
+                    limiterEnabled = limiterEnabled,
+                    onLimiterChange = { enabled -> limiterEnabled = enabled; getSharedPreferences("shyntax_dsp", MODE_PRIVATE).edit().putBoolean("limiter_enabled", enabled).apply() },
                     onDspChange = { bass, treble, width, loudness, reverb ->
                         dspBass = bass; dspTreble = treble; dspWidth = width; dspLoudness = loudness; dspReverb = reverb
                         dspEngine?.apply(bass, width, loudness, reverb)
