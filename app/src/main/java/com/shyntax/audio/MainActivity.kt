@@ -329,6 +329,7 @@ class MainActivity : ComponentActivity() {
                     onImport = { picker.launch(arrayOf("audio/*", "audio/aiff", "audio/x-aiff", "audio/x-aif")) },
                     scanStatus = scanStatus,
                     onScan = { requestMusicScan() },
+                    onChooseMusicFolder = { chooseMusicFolder() },
                     onSelect = { playTrack(it) },
                     onPlayQueue = { list, position -> playFromList(list, position) },
                     onFavorite = { index ->
@@ -862,7 +863,7 @@ private fun AudioHome(
     playingTrackIndex: Int, shuffleEnabled: Boolean, repeatMode: Int,
     onToggleShuffle: () -> Unit, onCycleRepeat: () -> Unit,
     abRepeatStart: Long?, abRepeatEnd: Long?, onSetAbStart: () -> Unit, onSetAbEnd: () -> Unit, onClearAbRepeat: () -> Unit,
-    onImport: () -> Unit, scanStatus: String, onScan: () -> Unit,
+    onImport: () -> Unit, scanStatus: String, onScan: () -> Unit, onChooseMusicFolder: () -> Unit,
     onSelect: (Int) -> Unit, onPlayQueue: (List<Track>, Int) -> Unit, onFavorite: (Int) -> Unit,
     onPlayPause: () -> Unit, onNext: () -> Unit, onPrevious: () -> Unit, onSeek: (Long) -> Unit,
     eqLevels: List<Float>, eqEnabled: Boolean, eqBandCount: Int, eqPreamp: Float, showEqualizer: Boolean,
