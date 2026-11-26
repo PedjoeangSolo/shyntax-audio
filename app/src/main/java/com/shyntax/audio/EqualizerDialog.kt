@@ -33,7 +33,7 @@ private val eqFreq=listOf("20","25","31","40","50","63","80","100","125","160","
 @Composable
 fun EqualizerDialog(
     levels:List<Float>,enabled:Boolean,bandCount:Int,
-    preamp:Float,bassBoost:Int,
+    preamp:Float,bassBoost:Int,limiterEnabled:Boolean,onLimiterChange:(Boolean)->Unit,
     onDismiss:()->Unit,onEnabledChange:(Boolean)->Unit,
     onBandCountChange:(Int)->Unit,onBandChange:(Int,Float)->Unit,
     onPreampChange:(Float)->Unit,onBassBoostChange:(Int)->Unit,
@@ -99,6 +99,10 @@ fun EqualizerDialog(
                         Column(Modifier.padding(horizontal=10.dp,vertical=6.dp)){
                             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("PREAMP",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text(String.format("%+.1f dB",preamp),color=eqBlue,fontSize=11.sp)}
                             Slider(value=preamp,onValueChange=onPreampChange,valueRange=-12f..12f)
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+                                Column { Text("LIMITER",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold); Text(if(limiterEnabled)"Peak protection active" else "Peak protection disabled",color=eqMuted,fontSize=9.sp) }
+                                Switch(checked=limiterEnabled,onCheckedChange=onLimiterChange)
+                            }
                             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("BASS BOOST",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text(bassBoost.toString()+"%",color=eqBlue,fontSize=11.sp)}
                             Slider(value=bassBoost.toFloat(),onValueChange={onBassBoostChange(it.roundToInt())},valueRange=0f..100f)
                         }
