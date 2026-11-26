@@ -12,6 +12,7 @@ import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.LruCache
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -74,6 +75,9 @@ private val PanelRaised = Color(0xFF12181F)
 private val MutedText = Color(0xFF93A8BC)
 private const val PREFS = "shyntax_library"
 private const val TRACK_URIS = "track_uris"
+private val artworkBitmapCache = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+}
 
 data class Track(
     val uri: Uri,
@@ -674,15 +678,35 @@ class MainActivity : ComponentActivity() {
         currentArtwork = null
         lifecycleScope.launch {
             val bitmap = withContext(Dispatchers.IO) {
-                val key = (artist + "|" + album).hashCode().toString()
+                val key = uri.toString()
+                artworkBitmapCache.get(key)?.let { return@withContext it }
                 val folder = File(cacheDir, "album_art").apply { mkdirs() }
-                val cached = File(folder, "$key.jpg")
+                val cached = File(folder, "${key.hashCode()}.jpg")
+                if (cached.isFile) {
+                    val cachedBytes = runCatching { cached.readBytes() }.getOrDefault(byteArrayOf())
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(cachedBytes, 0, cachedBytes.size, bounds)
+                    if (bounds.outWidth > 0 && bounds.outHeight > 0) {
+                        var sample = 1
+                        while (maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > 512) sample *= 2
+                        val decoded = BitmapFactory.decodeByteArray(cachedBytes, 0, cachedBytes.size, BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.RGB_565 })
+                        if (decoded != null) { artworkBitmapCache.put(key, decoded); return@withContext decoded }
+                    }
+                }
 
                 val embedded = runCatching {
                     MediaMetadataRetriever().let { retriever ->
                         try {
                             retriever.setDataSource(this@MainActivity, uri)
-                            retriever.embeddedPicture?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                            retriever.embeddedPicture?.let { bytes ->
+                                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null else {
+                                    var sample = 1
+                                    while (maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > 512) sample *= 2
+                                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.RGB_565 })
+                                }
+                            }
                         } finally { retriever.release() }
                     }
                 }.getOrNull()
@@ -704,7 +728,7 @@ class MainActivity : ComponentActivity() {
                     runCatching { cached.outputStream().use { localCover.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
                     return@withContext localCover
                 }
-                if (cached.exists()) BitmapFactory.decodeFile(cached.absolutePath)?.let { return@withContext it }
+                if (cached.exists()) BitmapFactory.decodeFile(cached.absolutePath)?.let { artworkBitmapCache.put(key, it); return@withContext it }
 
                 if (album.isBlank() || album == "Album tidak diketahui" ||
                     artist.isBlank() || artist == "Artis tidak diketahui") return@withContext null
@@ -736,6 +760,7 @@ class MainActivity : ComponentActivity() {
                     runCatching { cached.outputStream().use { image.compress(Bitmap.CompressFormat.JPEG, 92, it) } }
                 }
             }
+            if (bitmap != null) { artworkBitmapCache.put(uri.toString(), bitmap); runCatching { File(cacheDir, "album_art").listFiles()?.filter { it.isFile }?.let { files -> var total = files.sumOf { it.length() }; for (file in files.sortedBy { it.lastModified() }) { if (total <= 64L * 1024L * 1024L) break; val length = file.length(); if (file.delete()) total -= length } } } }
             if (tracks.getOrNull(currentTrackIndex)?.uri == uri) currentArtwork = bitmap
         }
     }
@@ -1548,7 +1573,7 @@ private fun TrackArtwork(uri: Uri, modifier: Modifier = Modifier) {
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
                     val sampleSize = maxOf(1, maxOf(bounds.outWidth / 512, bounds.outHeight / 512))
                     val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.also { artworkBitmapCache.put(uri.toString(), it) }
                 }
             } catch (_: Exception) {
                 null
