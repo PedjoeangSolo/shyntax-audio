@@ -32,7 +32,7 @@ class PlaybackService : MediaSessionService() {
                 enableAudioOutputPlaybackParams: Boolean
             ): AudioSink {
                 return DefaultAudioSink.Builder(context)
-                    .setAudioProcessors(arrayOf(ShyntaxResamplerProcessor(context)))
+                    .setAudioProcessors(arrayOf(ShyntaxResamplerProcessor(context), ShyntaxLimiterProcessor(context)))
                     .build()
             }
         }
