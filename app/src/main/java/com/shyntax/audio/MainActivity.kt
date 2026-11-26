@@ -796,10 +796,26 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun restoreLibrary() {
-        val saved = getSharedPreferences(PREFS, MODE_PRIVATE).getStringSet(TRACK_URIS, emptySet()).orEmpty()
-        saved.forEach { value ->
-            val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return@forEach
-            runCatching { tracks.add(readTrack(uri)) }
+        // SharedPreferences access is lightweight; metadata extraction is not.
+        // Copy the URI set before leaving the main thread, then read tags on IO.
+        val saved = getSharedPreferences(PREFS, MODE_PRIVATE)
+            .getStringSet(TRACK_URIS, emptySet())
+            .orEmpty()
+            .toList()
+
+        lifecycleScope.launch {
+            val restored = withContext(Dispatchers.IO) {
+                saved.mapNotNull { value ->
+                    val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return@mapNotNull null
+                    runCatching { readTrack(uri) }.getOrNull()
+                }
+            }
+
+            // Merge instead of replacing: a user may import files while restore is running.
+            val existingUris = tracks.mapTo(mutableSetOf()) { it.uri.toString() }
+            restored.forEach { track ->
+                if (existingUris.add(track.uri.toString())) tracks.add(track)
+            }
         }
     }
 
