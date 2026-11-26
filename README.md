@@ -31,6 +31,7 @@ Native Android music player built with Kotlin, Jetpack Compose and AndroidX Medi
 
 ## v0.8.0 scope and supported-format expectations
 The player uses Media3/Android platform extractors. Common formats supported by the standard Android/Media3 path include MP3, AAC (including AAC in M4A/MP4), WAV, FLAC, Ogg Vorbis and Opus, subject to Android codec/provider support. Container and codec support can vary by Android build. APE and DSD/DSF/DFF are not added by this milestone.
+AIFF and AIFF-C (.aif / .aiff / .aifc) are supported through an app-provided Media3 extractor (`AiffExtractor`), because Media3 1.5.1 ships no AIFF extractor and the FFmpeg extension is a decoder only. It covers uncompressed PCM (big-endian 'NONE' and little-endian 'sowt', 8/16/24/32-bit) and pass-through mu-law/A-law; other AIFF-C compressions are not supported.
 
 ## Important audio limitations
 - Metadata shown in the Hi-Res panel comes from Android's extractor and describes the source track when reported. It is not a measurement of the final DAC output.

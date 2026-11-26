@@ -98,6 +98,12 @@ private fun folderOfRelative(relativePath: String?): Pair<String, String> {
     return clean to clean.substringAfterLast('/')
 }
 
+/** True for AIFF-family file names (.aif / .aiff / .aifc), whatever the stored MIME type. */
+private fun isAiffFileName(name: String?): Boolean {
+    val lower = name?.lowercase() ?: return false
+    return lower.endsWith(".aif") || lower.endsWith(".aiff") || lower.endsWith(".aifc")
+}
+
 private fun formatDurationMs(ms: Long): String {
     val totalSeconds = (ms.coerceAtLeast(0L) / 1000L).toInt()
     return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
@@ -303,7 +309,7 @@ class MainActivity : ComponentActivity() {
                             else -> Player.REPEAT_MODE_OFF
                         }
                     } },
-                    onImport = { picker.launch(arrayOf("audio/*")) },
+                    onImport = { picker.launch(arrayOf("audio/*", "audio/aiff", "audio/x-aiff", "audio/x-aif")) },
                     scanStatus = scanStatus,
                     onScan = { requestMusicScan() },
                     onSelect = { playTrack(it) },
@@ -449,7 +455,10 @@ class MainActivity : ComponentActivity() {
                         cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH) else -1
                     while (cursor.moveToNext()) {
                         val mime = cursor.getString(mimeCol).orEmpty()
-                        if (mime.isNotBlank() && !mime.startsWith("audio/")) continue
+                        // AIFF files are sometimes indexed with a non-audio MIME type
+                        // (e.g. application/octet-stream); keep them on the file name.
+                        if (mime.isNotBlank() && !mime.startsWith("audio/") &&
+                            !isAiffFileName(cursor.getString(displayNameCol))) continue
                         val uri = Uri.withAppendedPath(collection, cursor.getLong(idCol).toString())
                         val folder = folderOf(if (dataCol >= 0) cursor.getString(dataCol) else null)
                             .let { direct ->

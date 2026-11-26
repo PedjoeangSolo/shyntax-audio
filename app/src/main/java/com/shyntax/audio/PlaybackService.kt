@@ -4,6 +4,9 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import android.content.Context
@@ -33,7 +36,15 @@ class PlaybackService : MediaSessionService() {
                     .build()
             }
         }
-        val player = ExoPlayer.Builder(this, renderersFactory).build().apply {
+        // Media3 1.5.1 ships no AIFF extractor, so append the app's own AiffExtractor to the
+        // default extractors; every other format keeps using the stock Media3 extractors.
+        val extractorsFactory = ExtractorsFactory {
+            DefaultExtractorsFactory().createExtractors() + AiffExtractor()
+        }
+        val mediaSourceFactory = DefaultMediaSourceFactory(this, extractorsFactory)
+        val player = ExoPlayer.Builder(this, renderersFactory)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
