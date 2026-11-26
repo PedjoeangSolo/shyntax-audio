@@ -22,6 +22,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.provider.OpenableColumns
 import android.provider.MediaStore
+import androidx.documentfile.provider.DocumentFile
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -162,8 +163,14 @@ class MainActivity : ComponentActivity() {
     private var audioOutputs by mutableStateOf<List<AudioOutputInfo>>(emptyList())
     private var outputDeviceCallback: AudioDeviceCallback? = null
     private var scanStatus by mutableStateOf("Menyiapkan pemindaian musik…")
-    private val musicPermissionLauncher = registerForActivityResult(RequestPermission()) { granted ->
-        if (granted) scanMediaLibrary() else scanStatus = "Izin musik ditolak. Gunakan Tambah Lagu untuk memilih file manual."
+    private val musicFolderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            runCatching { contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            getSharedPreferences("shyntax_music_folder", MODE_PRIVATE).edit().putString("tree_uri", uri.toString()).apply()
+            scanMediaLibrary(uri, isNewFolder = true)
+        } else if (getSharedPreferences("shyntax_music_folder", MODE_PRIVATE).getString("tree_uri", null) == null) {
+            scanStatus = "Pilih folder musik untuk mulai memindai."
+        }
     }
 
     private val backupExportPicker = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -431,86 +438,58 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestMusicScan() {
-        val permission = if (android.os.Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
-            else Manifest.permission.READ_EXTERNAL_STORAGE
-        if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) scanMediaLibrary()
-        else musicPermissionLauncher.launch(permission)
+        val savedTree = getSharedPreferences("shyntax_music_folder", MODE_PRIVATE).getString("tree_uri", null)
+        if (savedTree.isNullOrBlank()) {
+            scanStatus = "Pilih folder musik untuk mulai memindai."
+            musicFolderPicker.launch(null)
+        } else scanMediaLibrary(Uri.parse(savedTree))
     }
 
-    private fun scanMediaLibrary() {
-        scanStatus = "Memindai penyimpanan musik…"
+    private fun scanMediaLibrary(treeUri: Uri, isNewFolder: Boolean = false) {
+        scanStatus = "Memindai folder musik yang dipilih…"
         lifecycleScope.launch {
             val discovered = withContext(Dispatchers.IO) {
                 val result = mutableListOf<Track>()
-                val projectionList = mutableListOf(
-                    MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE,
-                    MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.ALBUM,
-                    MediaStore.Audio.Media.DURATION, MediaStore.Audio.Media.MIME_TYPE,
-                    MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.DATA
-                )
-                if (android.os.Build.VERSION.SDK_INT >= 29) {
-                    projectionList.add(MediaStore.Audio.Media.RELATIVE_PATH)
-                }
-                val projection = projectionList.toTypedArray()
-                val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-                contentResolver.query(collection, projection, null, null,
-                    "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
-                    val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                    val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                    val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                    val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-                    val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                    val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
-                    val displayNameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-                    val dataCol = cursor.getColumnIndex(MediaStore.Audio.Media.DATA)
-                    val relativeCol = if (android.os.Build.VERSION.SDK_INT >= 29)
-                        cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH) else -1
-                    while (cursor.moveToNext()) {
-                        val mime = cursor.getString(mimeCol).orEmpty()
-                        // AIFF files are sometimes indexed with a non-audio MIME type
-                        // (e.g. application/octet-stream); keep them on the file name.
-                        if (mime.isNotBlank() && !mime.startsWith("audio/") &&
-                            !isAiffFileName(cursor.getString(displayNameCol))) continue
-                        val uri = Uri.withAppendedPath(collection, cursor.getLong(idCol).toString())
-                        val folder = folderOf(if (dataCol >= 0) cursor.getString(dataCol) else null)
-                            .let { direct ->
-                                if (direct.first.isNotBlank()) direct
-                                else folderOfRelative(if (relativeCol >= 0) cursor.getString(relativeCol) else null)
-                            }
-                        result.add(Track(
-                            uri = uri,
-                            title = cursor.getString(titleCol)
-                                ?.takeIf { it.isNotBlank() && it != "<unknown>" }
-                                ?: cursor.getString(displayNameCol)?.substringBeforeLast('.', missingDelimiterValue = "")
-                                    ?.takeIf { it.isNotBlank() } ?: "Audio",
-                            artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Artis tidak diketahui",
-                            album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Album tidak diketahui",
-                            durationMs = cursor.getLong(durationCol).coerceAtLeast(0L),
-                            folderPath = folder.first,
-                            folderName = folder.second
-                        ))
+                val root = DocumentFile.fromTreeUri(this@MainActivity, treeUri) ?: return@withContext result
+                val supported = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "wma", "aif", "aiff", "aifc", "alac")
+                fun visit(directory: DocumentFile, relative: String, depth: Int) {
+                    if (depth > 20) return
+                    directory.listFiles().forEach { child ->
+                        val name = child.name ?: return@forEach
+                        if (child.isDirectory) {
+                            visit(child, if (relative.isBlank()) name else "$relative/$name", depth + 1)
+                        } else if (child.isFile && name.substringAfterLast('.', "").lowercase() in supported) {
+                            val track = runCatching { readTrack(child.uri) }.getOrNull() ?: return@forEach
+                            val folder = relative.ifBlank { root.name ?: "Musik" }
+                            result.add(track.copy(folderPath = folder, folderName = folder.substringAfterLast('/')))
+                        }
                     }
                 }
-                result
+                visit(root, "", 0)
+                result.sortedBy { it.title.lowercase() }
             }
+            val prefs = getSharedPreferences("shyntax_music_folder", MODE_PRIVATE)
+            val oldScanned = prefs.getStringSet("scanned_track_uris", emptySet()).orEmpty()
+            val discoveredUris = discovered.map { it.uri.toString() }.toSet()
             val favorites = tracks.associate { it.uri.toString() to it.isFavorite }
-            val discoveredByUri = discovered.associateBy { it.uri.toString() }
-            val merged = (tracks + discovered).distinctBy { it.uri.toString() }
-                .map { track ->
-                    val found = discoveredByUri[track.uri.toString()]
-                    track.copy(
-                        isFavorite = favorites[track.uri.toString()] ?: track.isFavorite,
-                        folderPath = track.folderPath.ifBlank { found?.folderPath ?: "" },
-                        folderName = track.folderName.ifBlank { found?.folderName ?: "" }
-                    )
-                }
+            val retained = tracks.filter { existing ->
+                val key = existing.uri.toString()
+                key !in oldScanned && !(isNewFolder && oldScanned.isEmpty() && key.startsWith("content://media/external/audio/media/"))
+            }
             tracks.clear()
-            tracks.addAll(merged)
+            tracks.addAll((retained + discovered).distinctBy { it.uri.toString() }
+                .map { it.copy(isFavorite = favorites[it.uri.toString()] ?: it.isFavorite) })
+            prefs.edit().putStringSet("scanned_track_uris", discoveredUris).apply()
             saveLibrary()
-            scanStatus = if (discovered.isEmpty()) "Pemindaian selesai: tidak ada lagu ditemukan."
-                else "Pemindaian selesai: ${discovered.size} file audio ditemukan; ${tracks.size} lagu di pustaka."
+            scanStatus = if (discovered.isEmpty()) "Folder dipindai: tidak ada file audio yang didukung."
+                else "Folder dipindai: ${discovered.size} lagu ditemukan."
             if (tracks.isNotEmpty() && controller?.mediaItemCount == 0) playTrack(0)
         }
+    }
+
+    private fun chooseMusicFolder() {
+        val current = getSharedPreferences("shyntax_music_folder", MODE_PRIVATE).getString("tree_uri", null)
+        musicFolderPicker.launch(current?.let { Uri.parse(it) })
     }
 
     private fun refreshAudioInfo(uri: Uri? = tracks.getOrNull(currentTrackIndex)?.uri) {
@@ -1015,6 +994,7 @@ private fun AudioHome(
             onOpenHiRes = { showSettings = false; onShowHiResDialog(true); onRefreshAudioInfo() },
             onOpenLyrics = { showSettings = false; onShowLyricsControls(true) },
             onScan = { showSettings = false; onScan() },
+            onChooseMusicFolder = { showSettings = false; chooseMusicFolder() },
             onImport = { showSettings = false; onImport() },
             onOpenBackup = { showSettings = false; onShowBackupDialog(true) }
         )
@@ -1471,6 +1451,7 @@ private fun ShyntaxSettingsDialog(
     onOpenHiRes: () -> Unit,
     onOpenLyrics: () -> Unit,
     onScan: () -> Unit,
+    onChooseMusicFolder: () -> Unit,
     onImport: () -> Unit,
     onOpenBackup: () -> Unit
 ) {
@@ -1501,7 +1482,8 @@ private fun ShyntaxSettingsDialog(
                     SettingsRow(Icons.Default.Info, "Analyzer Hi-Res", "Info file, analisis PCM, perangkat output", onOpenHiRes)
                 }
                 SettingsSection("PUSTAKA") {
-                    SettingsRow(Icons.Default.Refresh, "Pindai Ulang", "Cari file audio baru di perangkat", onScan)
+                    SettingsRow(Icons.Default.FolderOpen, "Pilih Folder Musik", "Tentukan folder dan subfolder yang boleh dipindai", onChooseMusicFolder)
+                    SettingsRow(Icons.Default.Refresh, "Pindai Ulang", "Pindai ulang folder musik yang dipilih", onScan)
                     SettingsRow(Icons.Default.Add, "Tambah Lagu", "Impor file audio secara manual", onImport)
                 }
                 SettingsSection("LIRIK") {
