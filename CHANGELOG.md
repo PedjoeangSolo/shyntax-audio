@@ -1,3 +1,9 @@
+## Unreleased — PCM Resampler Quality Refinement
+- Changed the Fast PCM16 resampler mode from nearest-neighbour sample-and-hold to linear interpolation for smoother transitions at low CPU cost.
+- Kept Balanced (4-tap sinc) and High (12-tap sinc) interpolation modes unchanged.
+- Clarified that resampling currently operates per PCM block; phase continuity across blocks and measured DAC output validation remain future work.
+- Playback backend remains Media3/ExoPlayer with FFmpeg ALAC decoding and Android AudioTrack output.
+
 ## v1.6.0 — Poweramp-Inspired Player & Library
 - Reworked Now Playing hierarchy around larger square album artwork, compact source/output information, track metadata, seek bar, A–B repeat and prominent transport controls.
 - Reworked the Library into a denser music-player layout with compact song rows and a two-column album/artist browser.
