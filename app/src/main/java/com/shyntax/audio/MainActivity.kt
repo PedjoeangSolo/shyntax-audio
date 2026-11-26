@@ -65,9 +65,9 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 
 private val Ice = Color(0xFF62D9FF)
-private val Background = Color(0xFF080C14)
-private val Panel = Color(0xFF111A28)
-private val PanelRaised = Color(0xFF192638)
+private val Background = Color(0xFF000000)
+private val Panel = Color(0xFF0A0D11)
+private val PanelRaised = Color(0xFF12181F)
 private val MutedText = Color(0xFF93A8BC)
 private const val PREFS = "shyntax_library"
 private const val TRACK_URIS = "track_uris"
@@ -791,6 +791,17 @@ private fun AudioHome(
     var sortMenu by remember { mutableStateOf(false) }
     var sortBy by remember { mutableStateOf("Judul A–Z") }
     var slider by remember(position) { mutableFloatStateOf(position.toFloat()) }
+    var showSleepTimer by remember { mutableStateOf(false) }
+    var sleepTimerEndMs by remember { mutableLongStateOf(0L) }
+    val currentPlaying by rememberUpdatedState(playing)
+    val currentOnPlayPause by rememberUpdatedState(onPlayPause)
+    LaunchedEffect(sleepTimerEndMs) {
+        if (sleepTimerEndMs > 0L) {
+            delay((sleepTimerEndMs - System.currentTimeMillis()).coerceAtLeast(0L))
+            if (sleepTimerEndMs > 0L && currentPlaying) currentOnPlayPause()
+            sleepTimerEndMs = 0L
+        }
+    }
 
     val visibleTracks = tracks.withIndex().filter { (_, track) ->
         (!favoritesOnly || track.isFavorite) &&
@@ -848,9 +859,40 @@ private fun AudioHome(
             onPreset = onEqPreset, onCustomPresetApply = onEqCustomPresetApply, onParametricApply = onParametricApply
         )
     }
+    if (showSleepTimer) {
+        AlertDialog(
+            onDismissRequest = { showSleepTimer = false },
+            containerColor = Panel,
+            title = { Text("Timer Tidur", color = Color.White) },
+            text = {
+                Column {
+                    Text(
+                        if (sleepTimerEndMs > 0L) "Timer sedang aktif. Pemutaran akan berhenti otomatis saat waktu habis."
+                        else "Pilih durasi. Pemutaran akan berhenti otomatis saat waktu habis.",
+                        color = MutedText, fontSize = 12.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    listOf(15, 30, 45, 60).forEach { minutes ->
+                        TextButton(onClick = {
+                            sleepTimerEndMs = System.currentTimeMillis() + minutes * 60_000L
+                            showSleepTimer = false
+                        }) { Text("$minutes menit", color = Ice) }
+                    }
+                    if (sleepTimerEndMs > 0L) {
+                        TextButton(onClick = { sleepTimerEndMs = 0L; showSleepTimer = false }) {
+                            Text("Matikan timer", color = Color(0xFFFFA3A3))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSleepTimer = false }) { Text("Tutup", color = Ice) }
+            }
+        )
+    }
     if (showLibrary) {
     Column(Modifier.fillMaxSize().background(
-        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF101B2B), Color(0xFF080C14), Background))
+        androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF0B0F14), Color(0xFF000000), Background))
     ).padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
@@ -888,7 +930,7 @@ private fun AudioHome(
             leadingIcon = { Icon(Icons.Default.Search, null, tint = Ice) },
             trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Hapus") } },
             shape = RoundedCornerShape(14.dp), colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Ice, unfocusedBorderColor = Color(0xFF26384A),
+                focusedBorderColor = Ice, unfocusedBorderColor = Color(0xFF2A343E),
                 focusedTextColor = Color.White, unfocusedTextColor = Color.White
             )
         )
@@ -976,7 +1018,7 @@ private fun AudioHome(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         rowNames.forEach { name ->
                             val groupTracks = groups[name].orEmpty()
-                            Surface(color = Color(0xFF121E2D), shape = RoundedCornerShape(14.dp),
+                            Surface(color = Color(0xFF10151C), shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier.weight(1f).clickable { groupFilter = name }) {
                                 Column(Modifier.padding(10.dp)) {
                                     val coverUri = groupTracks.firstOrNull()?.uri
@@ -984,7 +1026,7 @@ private fun AudioHome(
                                         TrackArtwork(coverUri, Modifier.fillMaxWidth().aspectRatio(1f))
                                     } else {
                                         Box(Modifier.fillMaxWidth().aspectRatio(1f).background(
-                                            androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF243D57), Color(0xFF172638), Color(0xFF263B55))),
+                                            androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF14425C), Color(0xFF0A0D11), Color(0xFF123240))),
                                             RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
                                             Icon(Icons.Default.Person, null, tint = Ice, modifier = Modifier.size(48.dp))
                                         }
@@ -1006,13 +1048,18 @@ private fun AudioHome(
                 }
                 items(visibleTracks, key = { it.value.uri.toString() }) { indexed ->
                     val track = indexed.value
-                    Surface(color = Color(0xFF111C2A), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    val isActiveTrack = indexed.index == playingTrackIndex
+                    Surface(color = if (isActiveTrack) PanelRaised else Color(0xFF0A0D11), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                             TrackArtwork(track.uri, Modifier.size(48.dp))
                             Spacer(Modifier.width(11.dp))
                             Column(Modifier.weight(1f).clickable { onSelect(indexed.index) }.padding(vertical = 5.dp)) {
-                                Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Text(track.title, color = if (isActiveTrack) Ice else Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
                                 Text("${track.artist}  •  ${track.album}", color = MutedText, fontSize = 11.sp, maxLines = 1)
+                            }
+                            if (isActiveTrack) {
+                                Icon(Icons.Default.GraphicEq, "Sedang diputar", tint = Ice, modifier = Modifier.size(19.dp))
+                                Spacer(Modifier.width(2.dp))
                             }
                             IconButton(onClick = { onFavorite(indexed.index) }) {
                                 Icon(if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Favorit", tint = if (track.isFavorite) Ice else Color.LightGray)
@@ -1026,7 +1073,7 @@ private fun AudioHome(
                 }
             }
         }
-        Surface(color = Color(0xFF172435), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Surface(color = Color(0xFF12181F), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -1075,7 +1122,7 @@ private fun AudioHome(
         Box(Modifier.fillMaxSize().background(Background)) {
             if (dynamicBackground && artwork != null) {
                 Image(artwork.asImageBitmap(), null, Modifier.fillMaxSize().blur(42.dp), contentScale = ContentScale.Crop, alpha = 0.38f)
-                Box(Modifier.fillMaxSize().background(Color(0xCC080C14)))
+                Box(Modifier.fillMaxSize().background(Color(0xCC000000)))
             }
             Column(Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1111,13 +1158,13 @@ private fun AudioHome(
                 ) {
                     if (artwork != null) Image(artwork.asImageBitmap(), "Sampul album", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     else Box(Modifier.fillMaxSize().background(
-                        androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF263F5B), Color(0xFF19283C), Color(0xFF3B315C)))
+                        androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF14425C), Color(0xFF0E1A24), Color(0xFF123240)))
                     ), contentAlignment = Alignment.Center) {
                         Icon(Icons.Default.MusicNote, null, tint = Ice, modifier = Modifier.size(76.dp))
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-                Surface(color = Color(0x99101826), shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0x990A0D11), shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(activeTrack?.title ?: "Belum ada lagu", color = Color.White, fontSize = if (compactLayout) 17.sp else 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
@@ -1125,26 +1172,23 @@ private fun AudioHome(
                         }
                         IconButton(onClick = { if (activeIndex in tracks.indices) onFavorite(activeIndex) }) {
                             Icon(if (activeTrack?.isFavorite == true) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                "Favorit", tint = if (activeTrack?.isFavorite == true) Color(0xFFFF8DAB) else Color.LightGray)
+                                "Favorit", tint = if (activeTrack?.isFavorite == true) Ice else Color.LightGray)
                         }
                     }
                 }
                 Spacer(Modifier.height(9.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     listOf(
-                        Triple("VISUAL", Icons.Default.Waves) { onShowVisualizer(true) },
                         Triple("EQUALIZER", Icons.Default.Tune) { onShowEqualizer(true) },
-                        Triple("REPEAT", if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat) { onCycleRepeat() },
-                        Triple("SHUFFLE", Icons.Default.Shuffle) { onToggleShuffle() }
+                        Triple("DAFTAR", Icons.Default.QueueMusic) { showLibrary = true },
+                        Triple("LIRIK", Icons.Default.Lyrics) { onShowLyricsControls(true) },
+                        Triple("TIMER", Icons.Default.Timer) { showSleepTimer = true },
+                        Triple("VISUAL", Icons.Default.Waves) { onShowVisualizer(true) }
                     ).forEachIndexed { index, item ->
-                        val active = when (index) {
-                            2 -> repeatMode != Player.REPEAT_MODE_OFF
-                            3 -> shuffleEnabled
-                            else -> false
-                        }
+                        val active = index == 3 && sleepTimerEndMs > 0L
                         Surface(
                             modifier = Modifier.weight(1f).clickable { item.third() },
-                            color = if (active) Color(0xFF24445B) else Color(0xAA172333),
+                            color = if (active) Color(0xFF123240) else Color(0xAA12181F),
                             shape = RoundedCornerShape(50),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.09f))
                         ) {
@@ -1161,7 +1205,7 @@ private fun AudioHome(
                     waveform.take(44).forEachIndexed { index, sample ->
                         val h = (8f + sample.coerceIn(0f, 1f) * 31f).dp
                         Box(Modifier.weight(1f).height(h).background(
-                            if (duration > 0 && index.toFloat() / 44f <= position.toFloat() / duration.toFloat()) Ice else Color(0xFF607487),
+                            if (duration > 0 && index.toFloat() / 44f <= position.toFloat() / duration.toFloat()) Ice else Color(0xFF55626E),
                             RoundedCornerShape(4.dp)
                         ))
                     }
@@ -1170,13 +1214,13 @@ private fun AudioHome(
                     value = if (duration > 0) sliderNow.coerceIn(0f, duration.toFloat()) else 0f,
                     onValueChange = { sliderNow = it }, onValueChangeFinished = { onSeek(sliderNow.toLong()) },
                     valueRange = 0f..duration.coerceAtLeast(1L).toFloat(),
-                    colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Ice, inactiveTrackColor = Color(0xFF526477))
+                    colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Ice, inactiveTrackColor = Color(0xFF3A4652))
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Surface(color = Color(0xAA080C14), shape = RoundedCornerShape(50)) {
+                    Surface(color = Color(0xAA000000), shape = RoundedCornerShape(50)) {
                         Text(timeLabel(position), color = Color.White, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp))
                     }
-                    Surface(color = Color(0xAA080C14), shape = RoundedCornerShape(50)) {
+                    Surface(color = Color(0xAA000000), shape = RoundedCornerShape(50)) {
                         Text(timeLabel(duration), color = Color.White, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp))
                     }
                 }
@@ -1192,19 +1236,26 @@ private fun AudioHome(
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onToggleShuffle, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.Shuffle, "Acak", tint = if (shuffleEnabled) Ice else Color.LightGray, modifier = Modifier.size(24.dp))
+                    }
                     IconButton(onClick = onPrevious, modifier = Modifier.size(54.dp)) {
                         Icon(Icons.Default.SkipPrevious, "Sebelumnya", tint = Color.White, modifier = Modifier.size(34.dp))
                     }
                     FilledIconButton(onClick = onPlayPause, modifier = Modifier.size(74.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFFE5F8FF), contentColor = Color(0xFF102A3B))) {
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFFE5F8FF), contentColor = Color(0xFF0B141B))) {
                         Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, "Putar/Jeda", modifier = Modifier.size(42.dp))
                     }
                     IconButton(onClick = onNext, modifier = Modifier.size(54.dp)) {
                         Icon(Icons.Default.SkipNext, "Berikutnya", tint = Color.White, modifier = Modifier.size(34.dp))
                     }
+                    IconButton(onClick = onCycleRepeat, modifier = Modifier.size(48.dp)) {
+                        Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                            "Ulang", tint = if (repeatMode != Player.REPEAT_MODE_OFF) Ice else Color.LightGray, modifier = Modifier.size(24.dp))
+                    }
                 }
                 Spacer(Modifier.height(7.dp))
-                Surface(color = Color(0xAA101A28), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Surface(color = Color(0xAA0A0D11), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("SUMBER", color = MutedText, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
@@ -1251,12 +1302,12 @@ private fun TrackArtwork(uri: Uri, modifier: Modifier = Modifier) {
             }
         }
     }
-    Surface(modifier = modifier, color = Color(0xFF1C3045), shape = RoundedCornerShape(9.dp)) {
+    Surface(modifier = modifier, color = Color(0xFF12181F), shape = RoundedCornerShape(9.dp)) {
         if (bitmap != null) {
             Image(bitmap!!.asImageBitmap(), contentDescription = "Sampul album", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         } else {
             Box(Modifier.fillMaxSize().background(
-                androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF24435B), Color(0xFF182638)))
+                androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF14425C), Color(0xFF0A0D11)))
             ), contentAlignment = Alignment.Center) {
                 Icon(Icons.Default.MusicNote, null, tint = Ice, modifier = Modifier.size(25.dp))
             }
@@ -1273,7 +1324,7 @@ private fun ShyntaxBottomBar(
     onAudio: () -> Unit
 ) {
     NavigationBar(
-        containerColor = Color(0xFF0E1724),
+        containerColor = Color(0xFF05080C),
         contentColor = Color(0xFF62D9FF),
         tonalElevation = 8.dp,
         modifier = Modifier.fillMaxWidth()

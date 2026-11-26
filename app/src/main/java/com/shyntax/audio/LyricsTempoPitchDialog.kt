@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.pow
 
 private val LyricsIce = Color(0xFF69D8FF)
-private val LyricsPanel = Color(0xFF111C29)
+private val LyricsPanel = Color(0xFF0A0D11)
 
 data class LyricLine(val timeMs: Long?, val text: String)
 
@@ -62,7 +62,7 @@ fun LyricsTempoPitchDialog(
     val activeIndex = lines.indexOfLast { it.timeMs != null && it.timeMs <= positionMs }
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF080D14),
+        containerColor = Color(0xFF000000),
         title = { Text("Lyrics • Tempo • Pitch", color = LyricsIce, fontWeight = FontWeight.Bold) },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 540.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

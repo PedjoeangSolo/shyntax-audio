@@ -23,7 +23,7 @@ import kotlin.math.min
 import kotlin.math.sin
 
 private val VisualIce = Color(0xFF69D8FF)
-private val VisualBg = Color(0xFF080D14)
+private val VisualBg = Color(0xFF000000)
 
 @Composable
 fun VisualizerDialog(
@@ -41,7 +41,7 @@ fun VisualizerDialog(
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
-        Surface(color = Color(0xFF111C29), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+        Surface(color = Color(0xFF0A0D11), shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
