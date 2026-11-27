@@ -1408,7 +1408,8 @@ private fun AudioHome(
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth().height(42.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    waveform.take(44).forEachIndexed { index, sample ->
+                    for (index in 0 until minOf(waveform.size, 44)) {
+                        val sample = waveform[index]
                         val h = (8f + sample.coerceIn(0f, 1f) * 31f).dp
                         Box(Modifier.weight(1f).height(h).background(
                             if (duration > 0 && index.toFloat() / 44f <= position.toFloat() / duration.toFloat()) Ice else Color(0xFF55626E),
