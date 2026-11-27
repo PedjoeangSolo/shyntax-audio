@@ -60,7 +60,9 @@ class ShyntaxResamplerProcessor(context: Context) : BaseAudioProcessor() {
         if (mode == "Manual" && selectedRate > 0 && selectedRate != inputAudioFormat.sampleRate) {
             return AudioProcessor.AudioFormat(selectedRate, inputAudioFormat.channelCount, C.ENCODING_PCM_16BIT)
         }
-        return inputAudioFormat
+        // "Nonaktif" and "Otomatis" keep the source rate, so stay out of the audio
+        // chain entirely instead of passing every buffer through custom code.
+        return AudioProcessor.AudioFormat.NOT_SET
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {

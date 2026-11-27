@@ -717,7 +717,17 @@ class MainActivity : ComponentActivity() {
                 repeatMode = newRepeatMode
             }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                scanStatus = "Gagal memutar lagu: ${error.message ?: "kesalahan pemutar"}"
+                var deepest: Throwable = error
+                var cause = error.cause
+                while (cause != null && cause !== deepest) {
+                    deepest = cause
+                    cause = cause.cause
+                }
+                scanStatus = if (deepest === error) {
+                    "Gagal memutar lagu: ${error.message ?: "kesalahan pemutar"}"
+                } else {
+                    "Gagal memutar lagu: ${deepest.javaClass.simpleName}: ${deepest.message ?: error.message ?: "kesalahan pemutar"}"
+                }
                 // A single restored item that can no longer be read (e.g. its folder
                 // permission was revoked) must not poison every following launch.
                 if (player.mediaItemCount <= 1) {

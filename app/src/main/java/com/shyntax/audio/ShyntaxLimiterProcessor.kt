@@ -22,6 +22,8 @@ class ShyntaxLimiterProcessor(context: Context) : BaseAudioProcessor() {
     private var limiterGain = 1f
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
+        // Stay out of the audio chain entirely while the limiter is switched off.
+        if (!preferences.getBoolean("limiter_enabled", false)) return AudioProcessor.AudioFormat.NOT_SET
         return if (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT) inputAudioFormat
         else AudioProcessor.AudioFormat.NOT_SET
     }
