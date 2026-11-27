@@ -89,7 +89,11 @@ data class Track(
     val durationMs: Long,
     val isFavorite: Boolean = false,
     val folderPath: String = "",
-    val folderName: String = ""
+    val folderName: String = "",
+    val genre: String = "",
+    val year: String = "",
+    val composer: String = "",
+    val albumArtist: String = ""
 )
 
 /** Folder (path + display name) containing the file at [filePath]; "" to "" when unknown. */
@@ -1072,7 +1076,17 @@ class MainActivity : ComponentActivity() {
             val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
                 ?.takeIf { it.isNotBlank() } ?: "Album tidak diketahui"
             val length = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-            Track(uri, title, artist, album, length, folderPath = folder.first, folderName = folder.second)
+            val genre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
+                ?.takeIf { it.isNotBlank() } ?: ""
+            val yearRaw = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)
+                ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DATE)
+            val year = yearRaw?.trim()?.take(4)?.takeIf { it.length == 4 && it.all { c -> c.isDigit() } } ?: ""
+            val composer = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_COMPOSER)
+                ?.takeIf { it.isNotBlank() } ?: ""
+            val albumArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                ?.takeIf { it.isNotBlank() } ?: ""
+            Track(uri, title, artist, album, length, folderPath = folder.first, folderName = folder.second,
+                genre = genre, year = year, composer = composer, albumArtist = albumArtist)
         } catch (_: Exception) {
             Track(uri, fileName, "Artis tidak diketahui", "Album tidak diketahui", 0L, folderPath = folder.first, folderName = folder.second)
         } finally {
@@ -1227,12 +1241,49 @@ private fun AudioHome(
         else -> 0.80f
     }
     var showLibrary by remember { mutableStateOf(false) }
-    var tab by remember { mutableStateOf("Lagu") }
+    var tab by remember { mutableStateOf("Beranda") }
     var query by remember { mutableStateOf("") }
     var groupFilter by remember { mutableStateOf<String?>(null) }
     var favoritesOnly by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
     var sortBy by remember { mutableStateOf("Judul A–Z") }
+    var hierarchyPath by remember { mutableStateOf<String?>(null) }
+    var openPlaylist by remember { mutableStateOf<String?>(null) }
+    var pickingForPlaylist by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    val homeContext = androidx.compose.ui.platform.LocalContext.current
+    var playlists by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    LaunchedEffect(Unit) {
+        playlists = runCatching {
+            val raw = homeContext.getSharedPreferences("shyntax_playlists", android.content.Context.MODE_PRIVATE).getString("data", null)
+            if (raw == null) emptyMap() else {
+                val json = org.json.JSONObject(raw)
+                val map = mutableMapOf<String, List<String>>()
+                json.keys().forEach { name ->
+                    val arr = json.optJSONArray(name)
+                    val uris = mutableListOf<String>()
+                    if (arr != null) for (i in 0 until arr.length()) arr.optString(i).takeIf { it.isNotBlank() }?.let { uris.add(it) }
+                    map[name] = uris
+                }
+                map
+            }
+        }.getOrDefault(emptyMap())
+    }
+    fun savePlaylists(next: Map<String, List<String>>) {
+        playlists = next
+        runCatching {
+            val json = org.json.JSONObject()
+            next.forEach { (name, uris) -> json.put(name, org.json.JSONArray(uris)) }
+            homeContext.getSharedPreferences("shyntax_playlists", android.content.Context.MODE_PRIVATE)
+                .edit().putString("data", json.toString()).apply()
+        }
+    }
+    LaunchedEffect(showLibrary) {
+        if (showLibrary) {
+            tab = "Beranda"; groupFilter = null; favoritesOnly = false
+            hierarchyPath = null; openPlaylist = null; pickingForPlaylist = false
+        }
+    }
     var showSettings by remember { mutableStateOf(false) }
     var slider by remember(position) { mutableFloatStateOf(position.toFloat()) }
     var showSleepTimer by remember { mutableStateOf(false) }
@@ -1256,6 +1307,10 @@ private fun AudioHome(
                 (groupFilter == null || when (tab) {
                     "Album" -> track.album == groupFilter
                     "Artis" -> track.artist == groupFilter
+                    "Artis Album" -> track.albumArtist.ifBlank { "Tidak diketahui" } == groupFilter
+                    "Aliran" -> track.genre.ifBlank { "Tidak diketahui" } == groupFilter
+                    "Tahun" -> track.year.ifBlank { "Tidak diketahui" } == groupFilter
+                    "Komposer" -> track.composer.ifBlank { "Tidak diketahui" } == groupFilter
                     "Folder" -> track.folderPath == groupFilter
                     else -> true
                 }) &&
@@ -1423,6 +1478,7 @@ private fun AudioHome(
             )
         )
         Spacer(Modifier.height(10.dp))
+        if (tab != "Beranda") {
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             verticalAlignment = Alignment.CenterVertically,
@@ -1431,7 +1487,7 @@ private fun AudioHome(
             listOf("Lagu", "Album", "Artis", "Folder", "Riwayat").forEach {
                 FilterChip(
                     selected = tab == it,
-                    onClick = { tab = it; groupFilter = null; favoritesOnly = false },
+                    onClick = { tab = it; groupFilter = null; favoritesOnly = false; hierarchyPath = null; openPlaylist = null; pickingForPlaylist = false },
                     label = { Text(it) }
                 )
             }
@@ -1444,6 +1500,7 @@ private fun AudioHome(
                     Text("Favorit")
                 }
             )
+        }
         }
         Spacer(Modifier.height(4.dp))
         Row(
@@ -1484,12 +1541,213 @@ private fun AudioHome(
                 tab == "Folder" && groupFilter != null -> selectedFolderName.uppercase()
                 groupFilter != null -> groupFilter!!.uppercase()
                 tab == "Riwayat" -> "TERAKHIR DIPUTAR"
-                else -> when (tab) { "Album" -> "ALBUM"; "Artis" -> "ARTIS"; "Folder" -> "FOLDER"; else -> "SEMUA LAGU" }
+                else -> when (tab) { "Album" -> "ALBUM"; "Artis" -> "ARTIS"; "Artis Album" -> "ARTIS ALBUM"; "Aliran" -> "ALIRAN"; "Tahun" -> "TAHUN"; "Komposer" -> "KOMPOSER"; "Folder" -> "FOLDER"; "Hirarki" -> "HIRARKI FOLDER"; "Daftar Putar" -> "DAFTAR PUTAR"; "Beranda" -> "PUSTAKA"; else -> "SEMUA LAGU" }
             },
             color = Ice, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
             modifier = Modifier.padding(top = 10.dp, bottom = 8.dp)
         )
-        if (tracks.isEmpty()) {
+        if (tab == "Beranda" && query.isBlank() && !favoritesOnly) {
+            data class Category(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val color: Color, val count: String, val action: () -> Unit)
+            val categories = listOf(
+                Category("Semua Lagu", Icons.Default.MusicNote, Color(0xFF5B8DEF), "${tracks.size} lagu") { tab = "Lagu"; groupFilter = null },
+                Category("Folder", Icons.Default.Folder, Color(0xFF4C7DD9), "${tracks.map { it.folderPath }.distinct().size} folder") { tab = "Folder"; groupFilter = null },
+                Category("Hirarki Folder", Icons.Default.AccountTree, Color(0xFF5B6EE1), "") { tab = "Hirarki"; hierarchyPath = null },
+                Category("Album", Icons.Default.Album, Color(0xFF7A5FD0), "${tracks.map { it.album }.distinct().size} album") { tab = "Album"; groupFilter = null },
+                Category("Artis", Icons.Default.Mic, Color(0xFF8E6BC8), "${tracks.map { it.artist }.distinct().size} artis") { tab = "Artis"; groupFilter = null },
+                Category("Artis Album", Icons.Default.Person, Color(0xFF9A6BC0), "${tracks.map { it.albumArtist.ifBlank { "Tidak diketahui" } }.distinct().size} artis") { tab = "Artis Album"; groupFilter = null },
+                Category("Aliran", Icons.Default.MusicNote, Color(0xFFB05A8A), "${tracks.map { it.genre.ifBlank { "Tidak diketahui" } }.distinct().size} aliran") { tab = "Aliran"; groupFilter = null },
+                Category("Tahun", Icons.Default.DateRange, Color(0xFF3FA7A3), "${tracks.map { it.year.ifBlank { "Tidak diketahui" } }.distinct().size} tahun") { tab = "Tahun"; groupFilter = null },
+                Category("Komposer", Icons.Default.LibraryMusic, Color(0xFF4CAF7D), "${tracks.map { it.composer.ifBlank { "Tidak diketahui" } }.distinct().size} komposer") { tab = "Komposer"; groupFilter = null },
+                Category("Daftar Putar", Icons.Default.QueueMusic, Color(0xFFB08968), "${playlists.size} daftar") { tab = "Daftar Putar"; openPlaylist = null },
+                Category("Favorit", Icons.Default.Favorite, Color(0xFFD95F6E), "${tracks.count { it.isFavorite }} lagu") { tab = "Lagu"; favoritesOnly = true; groupFilter = null },
+                Category("Riwayat", Icons.Default.History, Color(0xFF607D8B), "") { tab = "Riwayat"; groupFilter = null }
+            )
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (tracks.isEmpty()) item {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp)) {
+                        Icon(Icons.Default.LibraryMusic, null, tint = Ice, modifier = Modifier.size(54.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Text("Perpustakaan masih kosong", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text("Tambahkan lagu dari penyimpanan perangkat", color = Color.LightGray, fontSize = 12.sp)
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = onImport) { Text("Pilih file audio") }
+                    }
+                }
+                items(categories) { category ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { category.action() }.padding(vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(Modifier.size(46.dp).background(category.color, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                            Icon(category.icon, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Text(category.label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        if (category.count.isNotBlank()) Text(category.count, color = MutedText, fontSize = 11.sp)
+                    }
+                }
+            }
+        } else if (tab == "Daftar Putar") {
+            val currentPlaylist = openPlaylist
+            if (pickingForPlaylist && currentPlaylist != null) {
+                Column(Modifier.weight(1f)) {
+                    TextButton(onClick = { pickingForPlaylist = false }) { Icon(Icons.Default.ArrowBack, null); Text("Selesai memilih") }
+                    Text("Ketuk tanda tambah untuk memasukkan lagu ke \"$currentPlaylist\"", color = MutedText, fontSize = 11.sp, modifier = Modifier.padding(bottom = 6.dp))
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(tracks, key = { it.uri.toString() }) { track ->
+                            val added = playlists[currentPlaylist].orEmpty().contains(track.uri.toString())
+                            Surface(color = Color(0xFF0A0D11), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                Row(Modifier.padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    TrackArtwork(track.uri, Modifier.size(48.dp))
+                                    Spacer(Modifier.width(11.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                        Text(track.artist, color = MutedText, fontSize = 11.sp, maxLines = 1)
+                                    }
+                                    IconButton(onClick = {
+                                        if (!added) savePlaylists(playlists + (currentPlaylist to (playlists[currentPlaylist].orEmpty() + track.uri.toString())))
+                                    }) { Icon(if (added) Icons.Default.Check else Icons.Default.Add, "Tambah ke daftar putar", tint = Ice) }
+                                }
+                            }
+                        }
+                        if (tracks.isEmpty()) item { Text("Belum ada lagu di pustaka.", color = Color.LightGray, modifier = Modifier.padding(18.dp)) }
+                    }
+                }
+            } else if (currentPlaylist != null) {
+                val playlistTracks = playlists[currentPlaylist].orEmpty().mapNotNull { uriString -> tracks.firstOrNull { it.uri.toString() == uriString } }
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { openPlaylist = null }) { Icon(Icons.Default.ArrowBack, null); Text("Daftar Putar") }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { pickingForPlaylist = true }) { Icon(Icons.Default.Add, null); Text("Tambah Lagu") }
+                    }
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(playlistTracks, key = { it.uri.toString() }) { track ->
+                            Surface(color = Color(0xFF0A0D11), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                Row(Modifier.padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    TrackArtwork(track.uri, Modifier.size(48.dp))
+                                    Spacer(Modifier.width(11.dp))
+                                    Column(Modifier.weight(1f).clickable {
+                                        val idx = playlistTracks.indexOfFirst { it.uri == track.uri }
+                                        if (idx >= 0) onPlayQueue(playlistTracks, idx)
+                                    }.padding(vertical = 5.dp)) {
+                                        Text(track.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                        Text("${track.artist}  •  ${formatDurationMs(track.durationMs)}", color = MutedText, fontSize = 11.sp, maxLines = 1)
+                                    }
+                                    IconButton(onClick = {
+                                        savePlaylists(playlists + (currentPlaylist to playlists[currentPlaylist].orEmpty().filter { it != track.uri.toString() }))
+                                    }) { Icon(Icons.Default.Close, "Keluarkan dari daftar putar", tint = Color.LightGray) }
+                                }
+                            }
+                        }
+                        if (playlistTracks.isEmpty()) item { Text("Daftar putar ini masih kosong. Ketuk Tambah Lagu untuk mengisinya.", color = Color.LightGray, modifier = Modifier.padding(18.dp)) }
+                    }
+                }
+            } else {
+                Column(Modifier.weight(1f)) {
+                    TextButton(onClick = { tab = "Beranda" }) { Icon(Icons.Default.ArrowBack, null); Text("Kembali ke pustaka") }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = newPlaylistName, onValueChange = { newPlaylistName = it },
+                            modifier = Modifier.weight(1f), singleLine = true,
+                            placeholder = { Text("Nama daftar putar baru", color = Color.Gray) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Ice, unfocusedBorderColor = Color(0xFF2A343E), focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Button(onClick = {
+                            val name = newPlaylistName.trim()
+                            if (name.isNotBlank() && !playlists.containsKey(name)) { savePlaylists(playlists + (name to emptyList())); newPlaylistName = "" }
+                        }) { Text("Buat") }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(playlists.keys.sorted(), key = { it }) { name ->
+                            val uris = playlists[name].orEmpty()
+                            Surface(color = Color(0xFF0A0D11), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                Row(Modifier.padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(46.dp).background(Color(0xFFB08968), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.QueueMusic, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                                    }
+                                    Spacer(Modifier.width(11.dp))
+                                    Column(Modifier.weight(1f).clickable { openPlaylist = name }.padding(vertical = 5.dp)) {
+                                        Text(name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                        Text("${uris.size} lagu", color = MutedText, fontSize = 11.sp)
+                                    }
+                                    IconButton(onClick = {
+                                        val pts = uris.mapNotNull { u -> tracks.firstOrNull { it.uri.toString() == u } }
+                                        if (pts.isNotEmpty()) onPlayQueue(pts, 0)
+                                    }) { Icon(Icons.Default.PlayArrow, "Putar daftar putar", tint = Ice) }
+                                    IconButton(onClick = { savePlaylists(playlists - name) }) { Icon(Icons.Default.Delete, "Hapus daftar putar", tint = Color.LightGray) }
+                                }
+                            }
+                        }
+                        if (playlists.isEmpty()) item { Text("Belum ada daftar putar. Buat yang pertama dengan kolom di atas.", color = Color.LightGray, modifier = Modifier.padding(18.dp)) }
+                    }
+                }
+            }
+        } else if (tab == "Hirarki") {
+            val allPaths = remember(tracks) { tracks.map { it.folderPath }.filter { it.isNotBlank() }.distinct() }
+            val rootPath = remember(allPaths) {
+                if (allPaths.isEmpty()) "" else {
+                    var prefix = allPaths.first()
+                    for (p in allPaths) {
+                        var i = 0
+                        while (i < prefix.length && i < p.length && prefix[i] == p[i]) i++
+                        prefix = prefix.substring(0, i)
+                    }
+                    if (allPaths.any { it == prefix }) prefix else prefix.substringBeforeLast('/', missingDelimiterValue = prefix)
+                }
+            }
+            val currentPath = hierarchyPath ?: rootPath
+            val childFolders = remember(tracks, currentPath) {
+                allPaths.filter { it != currentPath && it.startsWith(currentPath + "/") }
+                    .map { path ->
+                        val segment = path.removePrefix(currentPath + "/").substringBefore('/')
+                        val full = currentPath + "/" + segment
+                        Triple(segment, full, tracks.count { it.folderPath == full || it.folderPath.startsWith(full + "/") })
+                    }.distinctBy { it.second }.sortedBy { it.first.lowercase() }
+            }
+            val directTracks = remember(tracks, currentPath) { tracks.filter { it.folderPath == currentPath } }
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    TextButton(onClick = {
+                        if (currentPath == rootPath) { tab = "Beranda"; hierarchyPath = null }
+                        else hierarchyPath = currentPath.substringBeforeLast('/', missingDelimiterValue = rootPath).let { parent -> if (parent.length < rootPath.length) rootPath else parent }
+                    }) { Icon(Icons.Default.ArrowBack, null); Text(if (currentPath == rootPath) "Kembali ke pustaka" else "Folder di atasnya") }
+                }
+                item {
+                    Text(currentPath.substringAfterLast('/').ifBlank { "Folder" }, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                }
+                items(childFolders, key = { it.second }) { child ->
+                    Surface(color = Color(0xFF0A0D11), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(10.dp).clickable { hierarchyPath = child.second }, verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(46.dp).background(Color(0xFF4C7DD9), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Folder, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                            }
+                            Spacer(Modifier.width(11.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(child.first, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                Text("${child.third} lagu", color = MutedText, fontSize = 11.sp)
+                            }
+                            Icon(Icons.Default.ChevronRight, null, tint = MutedText)
+                        }
+                    }
+                }
+                if (directTracks.isNotEmpty()) item {
+                    Surface(color = PanelRaised, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(10.dp).clickable { tab = "Folder"; groupFilter = currentPath }, verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PlayArrow, null, tint = Ice)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Lihat ${directTracks.size} lagu di folder ini", color = Color.White, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+                if (childFolders.isEmpty() && directTracks.isEmpty()) item {
+                    Text("Tidak ada folder di sini.", color = Color.LightGray, modifier = Modifier.padding(18.dp))
+                }
+            }
+        } else if (tracks.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.LibraryMusic, null, tint = Ice, modifier = Modifier.size(54.dp))
@@ -1500,13 +1758,20 @@ private fun AudioHome(
                     Button(onClick = onImport) { Text("Pilih file audio") }
                 }
             }
-        } else if (tab in listOf("Album", "Artis", "Folder") && groupFilter == null && !favoritesOnly) {
+        } else if (tab in listOf("Album", "Artis", "Artis Album", "Aliran", "Tahun", "Komposer", "Folder") && groupFilter == null && !favoritesOnly) {
             val groups = when (tab) {
                 "Album" -> tracks.groupBy { it.album }
                 "Folder" -> tracks.groupBy { it.folderPath }
+                "Artis Album" -> tracks.groupBy { it.albumArtist.ifBlank { "Tidak diketahui" } }
+                "Aliran" -> tracks.groupBy { it.genre.ifBlank { "Tidak diketahui" } }
+                "Tahun" -> tracks.groupBy { it.year.ifBlank { "Tidak diketahui" } }
+                "Komposer" -> tracks.groupBy { it.composer.ifBlank { "Tidak diketahui" } }
                 else -> tracks.groupBy { it.artist }
             }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    TextButton(onClick = { tab = "Beranda" }) { Icon(Icons.Default.ArrowBack, null); Text("Kembali ke pustaka") }
+                }
                 items(groups.keys.sorted().chunked(2)) { rowNames ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         rowNames.forEach { name ->
@@ -1521,7 +1786,7 @@ private fun AudioHome(
                                         Box(Modifier.fillMaxWidth().aspectRatio(1f).background(
                                             androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF14425C), Color(0xFF0A0D11), Color(0xFF123240))),
                                             RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-                                            Icon(if (tab == "Folder") Icons.Default.Folder else Icons.Default.Person, null, tint = Ice, modifier = Modifier.size(48.dp))
+                                            Icon(when (tab) { "Folder" -> Icons.Default.Folder; "Aliran" -> Icons.Default.MusicNote; "Tahun" -> Icons.Default.DateRange; "Komposer" -> Icons.Default.LibraryMusic; else -> Icons.Default.Person }, null, tint = Ice, modifier = Modifier.size(48.dp))
                                         }
                                     }
                                     Spacer(Modifier.height(9.dp))
@@ -1550,6 +1815,8 @@ private fun AudioHome(
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (groupFilter != null) item {
                     TextButton(onClick = { groupFilter = null }) { Icon(Icons.Default.ArrowBack, null); Text("Kembali ke ${tab.lowercase()}") }
+                } else if (tab != "Beranda") item {
+                    TextButton(onClick = { tab = "Beranda"; favoritesOnly = false }) { Icon(Icons.Default.ArrowBack, null); Text("Kembali ke pustaka") }
                 }
                 items(visibleTracks, key = { it.value.uri.toString() }) { indexed ->
                     val track = indexed.value
