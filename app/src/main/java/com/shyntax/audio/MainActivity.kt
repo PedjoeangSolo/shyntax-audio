@@ -19,7 +19,9 @@ import java.net.URL
 import java.net.URLEncoder
 import org.json.JSONObject
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.content.ContentUris
 import android.os.Handler
 import android.provider.OpenableColumns
 import android.provider.MediaStore
@@ -28,6 +30,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -147,6 +151,22 @@ class MainActivity : ComponentActivity() {
         if (granted) startVisualizerCapture()
         else visualizerStatus = "Izin Audio ditolak. Izinkan RECORD_AUDIO untuk membaca visualizer."
     }
+    private val scanMutex = Mutex()
+    private val pendingControllerActions = mutableListOf<(MediaController) -> Unit>()
+    private val audioReadPermissionLauncher = registerForActivityResult(RequestPermission()) { granted ->
+        if (granted) scanMediaStore()
+        else if (getSharedPreferences("shyntax_music_folder", MODE_PRIVATE).getString("tree_uri", null) == null) {
+            scanStatus = "Izin baca audio ditolak. Pilih folder musik untuk mulai memindai."
+            musicFolderPicker.launch(null)
+        }
+    }
+
+    private fun audioReadPermission(): String =
+        if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO
+        else Manifest.permission.READ_EXTERNAL_STORAGE
+
+    private fun hasAudioReadPermission(): Boolean =
+        checkSelfPermission(audioReadPermission()) == PackageManager.PERMISSION_GRANTED
     private var dspBass by mutableIntStateOf(0)
     private var dspTreble by mutableIntStateOf(0)
     private var dspWidth by mutableIntStateOf(0)
@@ -244,8 +264,10 @@ class MainActivity : ComponentActivity() {
         playbackSpeed = playbackPrefs.getFloat("speed", 1f).coerceIn(0.5f, 2f)
         pitchSemitones = playbackPrefs.getInt("pitch", 0).coerceIn(-12, 12)
         val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        controllerConnecting = true
         val future = MediaController.Builder(this, token).buildAsync()
         future.addListener({
+            controllerConnecting = false
             controller = runCatching { future.get() }.getOrNull()
             applyPlaybackParameters()
             controller?.let { registerPlaybackListener(it) }
@@ -254,6 +276,12 @@ class MainActivity : ComponentActivity() {
             // Keep an existing MediaSession queue intact. Restore the last track only
             // when the service/player was recreated and its queue is empty.
             if (controller?.mediaItemCount == 0) restoreLastPlayback()
+            val connected = controller
+            if (connected != null && pendingControllerActions.isNotEmpty()) {
+                val actions = pendingControllerActions.toList()
+                pendingControllerActions.clear()
+                actions.forEach { it(connected) }
+            }
         }, MoreExecutors.directExecutor())
 
         lifecycleScope.launch {
@@ -409,20 +437,92 @@ class MainActivity : ComponentActivity() {
 
     private fun requestMusicScan() {
         val savedTree = getSharedPreferences("shyntax_music_folder", MODE_PRIVATE).getString("tree_uri", null)
-        if (savedTree.isNullOrBlank()) {
-            scanStatus = "Pilih folder musik untuk mulai memindai."
-            musicFolderPicker.launch(null)
-        } else scanMediaLibrary(Uri.parse(savedTree))
+        if (hasAudioReadPermission()) {
+            scanMediaStore()
+        } else if (savedTree.isNullOrBlank()) {
+            // No folder yet: ask for device-wide audio access first; the launcher
+            // callback falls back to the folder picker when access is denied.
+            audioReadPermissionLauncher.launch(audioReadPermission())
+        } else {
+            audioReadPermissionLauncher.launch(audioReadPermission())
+        }
+        if (!savedTree.isNullOrBlank()) scanMediaLibrary(Uri.parse(savedTree))
+    }
+
+    /** Device-wide automatic scan through MediaStore; needs the audio read permission. */
+    private fun scanMediaStore() {
+        scanStatus = "Memindai lagu di perangkat…"
+        lifecycleScope.launch {
+            scanMutex.withLock {
+                val found = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val result = mutableListOf<Track>()
+                        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                        val baseProjection = arrayOf(
+                            MediaStore.Audio.Media._ID,
+                            MediaStore.Audio.Media.TITLE,
+                            MediaStore.Audio.Media.ARTIST,
+                            MediaStore.Audio.Media.ALBUM,
+                            MediaStore.Audio.Media.DURATION,
+                            MediaStore.Audio.Media.DISPLAY_NAME
+                        )
+                        // RELATIVE_PATH only exists on API 29+.
+                        val projection = if (Build.VERSION.SDK_INT >= 29)
+                            baseProjection + MediaStore.Audio.Media.RELATIVE_PATH else baseProjection
+                        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+                        contentResolver.query(collection, projection, selection, null, "${MediaStore.Audio.Media.TITLE} ASC")?.use { cursor ->
+                            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                            val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                            val pathCol = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+                            val nameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
+                            while (cursor.moveToNext()) {
+                                val uri = ContentUris.withAppendedId(collection, cursor.getLong(idCol))
+                                val fileName = if (nameCol >= 0) cursor.getString(nameCol) else null
+                                val title = cursor.getString(titleCol)?.takeIf { it.isNotBlank() }
+                                    ?: fileName?.substringBeforeLast('.', missingDelimiterValue = "")?.takeIf { it.isNotBlank() }
+                                    ?: "Audio"
+                                val artist = cursor.getString(artistCol)?.takeIf { it.isNotBlank() && it != "<unknown>" } ?: "Artis tidak diketahui"
+                                val album = cursor.getString(albumCol)?.takeIf { it.isNotBlank() } ?: "Album tidak diketahui"
+                                val duration = cursor.getLong(durationCol).coerceAtLeast(0L)
+                                val folder = folderOfRelative(if (pathCol >= 0) cursor.getString(pathCol) else null)
+                                result.add(Track(uri, title, artist, album, duration, folderPath = folder.first, folderName = folder.second))
+                            }
+                        }
+                        result
+                    }.getOrDefault(emptyList())
+                }
+                // MediaStore results replace the previous MediaStore set only;
+                // folder-scanned and manually imported tracks are kept.
+                val mediaStorePrefix = "content://media/external/audio/media/"
+                val favorites = tracks.associate { it.uri.toString() to it.isFavorite }
+                val kept = tracks.filter { !it.uri.toString().startsWith(mediaStorePrefix) }
+                tracks.clear()
+                tracks.addAll((kept + found).distinctBy { it.uri.toString() }
+                    .map { it.copy(isFavorite = favorites[it.uri.toString()] ?: it.isFavorite) })
+                saveLibrary()
+                scanStatus = when {
+                    found.isNotEmpty() -> "Pemindaian selesai: ${found.size} lagu ditemukan di perangkat · total ${tracks.size} lagu."
+                    tracks.isEmpty() -> "Tidak ada lagu ditemukan di perangkat. Pilih folder musik atau impor file audio."
+                    else -> "Pemindaian selesai: ${tracks.size} lagu di pustaka."
+                }
+                if (tracks.isNotEmpty() && controller?.mediaItemCount == 0) playTrack(0)
+            }
+        }
     }
 
     private fun scanMediaLibrary(treeUri: Uri, isNewFolder: Boolean = false) {
         scanStatus = "Memindai folder musik yang dipilih…"
-        val existingTracks = tracks.toList()
         lifecycleScope.launch {
+            scanMutex.withLock {
+            val existingTracks = tracks.toList()
             val prefs = getSharedPreferences("shyntax_music_folder", MODE_PRIVATE)
             val oldScanned = prefs.getStringSet("scanned_track_uris", emptySet()).orEmpty().toSet()
             val oldIndexText = prefs.getString("scan_metadata_index", null)
-            val scanResult = withContext(Dispatchers.IO) {
+            val scanOutcome = runCatching {
+            withContext(Dispatchers.IO) {
                 val root = DocumentFile.fromTreeUri(this@MainActivity, treeUri)
                     ?: return@withContext null
                 val supported = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "wma", "aif", "aiff", "aifc", "alac")
@@ -469,9 +569,16 @@ class MainActivity : ComponentActivity() {
                 visit(root, "", 0)
                 Triple(result.sortedBy { it.title.lowercase() }, newIndex.toString(), reusedCount to readCount)
             }
+            }
+            val scanResult = scanOutcome.getOrNull()
 
             if (scanResult == null) {
-                scanStatus = "Folder musik tidak dapat dibuka. Periksa izin folder lalu coba lagi."
+                if (scanOutcome.exceptionOrNull() is SecurityException) {
+                    prefs.edit().remove("tree_uri").apply()
+                    scanStatus = "Izin folder musik hilang. Pilih ulang folder musikmu lewat tombol folder."
+                } else {
+                    scanStatus = "Folder musik tidak dapat dibuka. Periksa izin folder lalu coba lagi."
+                }
                 return@launch
             }
             val discovered = scanResult.first
@@ -496,6 +603,7 @@ class MainActivity : ComponentActivity() {
                 "Pemindaian selesai: ${discovered.size} lagu · ${reused} digunakan dari cache · ${reread} dibaca ulang."
             }
             if (tracks.isNotEmpty() && controller?.mediaItemCount == 0) playTrack(0)
+            }
         }
     }
 
@@ -608,6 +716,15 @@ class MainActivity : ComponentActivity() {
             override fun onRepeatModeChanged(newRepeatMode: Int) {
                 repeatMode = newRepeatMode
             }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                scanStatus = "Gagal memutar lagu: ${error.message ?: "kesalahan pemutar"}"
+                // A single restored item that can no longer be read (e.g. its folder
+                // permission was revoked) must not poison every following launch.
+                if (player.mediaItemCount <= 1) {
+                    getSharedPreferences("shyntax_playback_state", MODE_PRIVATE).edit().remove("last_uri").apply()
+                    player.stop()
+                }
+            }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val queueIndex = player.currentMediaItemIndex.coerceAtLeast(0)
                 currentTrackIndex = playbackQueue.getOrNull(queueIndex)
@@ -626,18 +743,14 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    private fun togglePlayback() {
+    /** Runs [action] with the connected controller, connecting to the service first when needed. */
+    private fun withController(action: (MediaController) -> Unit) {
         val current = controller
         if (current != null) {
-            if (current.mediaItemCount == 0) {
-                val savedUri = getSharedPreferences("shyntax_playback_state", MODE_PRIVATE).getString("last_uri", null)
-                if (savedUri != null) restoreLastPlayback()
-                else if (tracks.isNotEmpty()) playTrack(0)
-                return
-            }
-            if (current.isPlaying) current.pause() else current.play()
+            action(current)
             return
         }
+        pendingControllerActions.add(action)
         if (controllerConnecting) return
         controllerConnecting = true
         val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
@@ -645,25 +758,50 @@ class MainActivity : ComponentActivity() {
         future.addListener({
             val connected = runCatching { future.get() }.getOrNull()
             controllerConnecting = false
-            if (connected == null) return@addListener
+            if (connected == null) {
+                pendingControllerActions.clear()
+                return@addListener
+            }
+            val isFirstConnection = controller == null
             controller = connected
-            registerPlaybackListener(connected)
-            applyPlaybackParameters()
-            if (connected.mediaItemCount > 0) connected.play()
-            else {
+            if (isFirstConnection) {
+                registerPlaybackListener(connected)
+                applyPlaybackParameters()
+                if (connected.mediaItemCount == 0) restoreLastPlayback()
+            }
+            val actions = pendingControllerActions.toList()
+            pendingControllerActions.clear()
+            actions.forEach { it(connected) }
+        }, MoreExecutors.directExecutor())
+    }
+
+    private fun togglePlayback() {
+        withController { current ->
+            if (current.mediaItemCount == 0) {
                 val savedUri = getSharedPreferences("shyntax_playback_state", MODE_PRIVATE).getString("last_uri", null)
                 if (savedUri != null) {
                     restoreLastPlayback()
-                    connected.play()
+                    current.play()
                 } else if (tracks.isNotEmpty()) playTrack(0)
+                return@withController
             }
-        }, MoreExecutors.directExecutor())
+            if (current.isPlaying) current.pause() else current.play()
+        }
     }
 
     private fun restoreLastPlayback() {
         val prefs = getSharedPreferences("shyntax_playback_state", MODE_PRIVATE)
         val uriText = prefs.getString("last_uri", null) ?: return
         val uri = runCatching { Uri.parse(uriText) }.getOrNull() ?: return
+        // A saved folder (SAF) item whose permission was revoked can never play again;
+        // drop it instead of preparing an unreadable item on every launch.
+        if (uriText.contains("/document/") || uriText.contains("/tree/")) {
+            val readable = runCatching { contentResolver.openInputStream(uri)?.use { } }.isSuccess
+            if (!readable) {
+                prefs.edit().remove("last_uri").apply()
+                return
+            }
+        }
         val savedPosition = prefs.getLong("last_position", 0L).coerceAtLeast(0L)
         val shouldResume = prefs.getBoolean("was_playing", false)
         val track = tracks.firstOrNull { it.uri == uri }
@@ -942,8 +1080,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun playQueue(queue: List<Track>, startIndex: Int, globalIndex: Int) {
-        val c = controller ?: return
         if (startIndex !in queue.indices) return
+        withController { c ->
         playbackQueue.clear()
         playbackQueue.addAll(queue)
         currentTrackIndex = if (globalIndex in tracks.indices) globalIndex else startIndex
@@ -961,6 +1099,7 @@ class MainActivity : ComponentActivity() {
         refreshAudioInfo(startTrack.uri)
         c.prepare()
         c.play()
+        }
     }
 
     override fun onStop() {
