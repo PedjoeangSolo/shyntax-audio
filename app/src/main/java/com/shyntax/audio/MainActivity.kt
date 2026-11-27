@@ -251,6 +251,7 @@ class MainActivity : ComponentActivity() {
             controller?.addListener(object : androidx.media3.common.Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     playing = isPlaying
+                    if (!isPlaying) controller?.let { persistLastPlayback(it) }
                     if (eqEngine == null) {
                         val id = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
                         if (id > 0) setupEqualizer(id)
@@ -304,7 +305,7 @@ class MainActivity : ComponentActivity() {
                         position = loopStart
                     }
                     val now = System.currentTimeMillis()
-                    if (now - lastPersistAt >= 1500L) {
+                    if (player.isPlaying && now - lastPersistAt >= 5000L) {
                         persistLastPlayback(player)
                         lastPersistAt = now
                     }
