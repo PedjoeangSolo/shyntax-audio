@@ -95,6 +95,8 @@ fun LyricsDialog(
     artwork: Bitmap?,
     onImportLyrics: () -> Unit,
     onSeek: (Long) -> Unit,
+    onlineStatus: String,
+    onFetchOnline: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val lines = remember(lyrics) { parseLyrics(lyrics) }
@@ -119,13 +121,26 @@ fun LyricsDialog(
                     modifier = Modifier.padding(start = 12.dp)
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onImportLyrics) { Text("Impor Lirik", color = LyricsIce) }
                 IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Tutup", tint = Color.White) }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = onFetchOnline, modifier = Modifier.weight(1f)) { Text("Cari Lirik Online") }
+                OutlinedButton(onClick = onImportLyrics, modifier = Modifier.weight(1f)) { Text("Impor dari File") }
+            }
+            if (onlineStatus.isNotBlank()) {
+                Text(
+                    onlineStatus,
+                    color = LyricsIce, fontSize = 12.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
+                )
             }
             if (lyrics.isBlank()) {
                 Box(Modifier.weight(1f).fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        "Belum ada lirik untuk lagu ini.\nKetuk Impor Lirik untuk menambahkan file .lrc atau .txt.",
+                        "Belum ada lirik untuk lagu ini.\nKetuk Cari Lirik Online untuk mengambil lirik dari internet, atau Impor dari File untuk memilih file .lrc / .txt.",
                         color = Color.White.copy(alpha = .75f), fontSize = 16.sp, lineHeight = 24.sp,
                         textAlign = TextAlign.Center
                     )

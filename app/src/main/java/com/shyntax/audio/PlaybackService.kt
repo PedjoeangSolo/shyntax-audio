@@ -25,6 +25,9 @@ class PlaybackService : MediaSessionService() {
             init {
                 // Use FFmpeg when the Android platform decoder cannot handle a format such as ALAC.
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+                // Keep 24/32-bit sources in float PCM on the way to the output instead of
+                // truncating everything to 16-bit; devices that cannot take float fall back safely.
+                setEnableFloatOutput(true)
             }
             override fun buildAudioSink(
                 context: Context,
@@ -32,6 +35,7 @@ class PlaybackService : MediaSessionService() {
                 enableAudioOutputPlaybackParams: Boolean
             ): AudioSink {
                 return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
                     .setAudioProcessors(arrayOf(ShyntaxResamplerProcessor(context), ShyntaxLimiterProcessor(context)))
                     .build()
             }

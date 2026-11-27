@@ -135,6 +135,7 @@ class MainActivity : ComponentActivity() {
     private var showLyricsControls by mutableStateOf(false)
     private var currentTrackIndex by mutableIntStateOf(0)
     private var lyricsText by mutableStateOf("")
+    private var lyricsOnlineStatus by mutableStateOf("")
     private var playbackSpeed by mutableFloatStateOf(1f)
     private var pitchSemitones by mutableIntStateOf(0)
     private var showVisualizer by mutableStateOf(false)
@@ -169,6 +170,7 @@ class MainActivity : ComponentActivity() {
     private var currentAudioInfo by mutableStateOf(AudioFileInfo())
     private var currentArtwork by mutableStateOf<Bitmap?>(null)
     private var audioOutputs by mutableStateOf<List<AudioOutputInfo>>(emptyList())
+    private var currentOutputLabel by mutableStateOf("Speaker internal")
     private var outputDeviceCallback: AudioDeviceCallback? = null
     private var scanStatus by mutableStateOf("Menyiapkan pemindaian musik…")
     private val musicFolderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -330,6 +332,8 @@ class MainActivity : ComponentActivity() {
                     showLyricsControls = showLyricsControls, onShowLyricsControls = { showLyricsControls = it },
                     lyricsText = lyricsText, playbackSpeed = playbackSpeed, pitchSemitones = pitchSemitones,
                     onImportLyrics = { lyricsPicker.launch(arrayOf("text/*", "application/octet-stream")) },
+                    lyricsOnlineStatus = lyricsOnlineStatus,
+                    onFetchOnlineLyrics = { fetchOnlineLyrics() },
                     onSpeedChange = { value -> playbackSpeed = value.coerceIn(0.5f, 2f); applyPlaybackParameters() },
                     onPitchChange = { value -> pitchSemitones = value.coerceIn(-12, 12); applyPlaybackParameters() },
                     onResetPlayback = { playbackSpeed = 1f; pitchSemitones = 0; applyPlaybackParameters() },
@@ -338,7 +342,7 @@ class MainActivity : ComponentActivity() {
                     showDsp = showDsp, onShowDsp = { showDsp = it },
                     showVisualizer = showVisualizer, onShowVisualizer = { showVisualizer = it },
                     showHiResDialog = showHiResDialog, onShowHiResDialog = { showHiResDialog = it },
-                    audioFileInfo = currentAudioInfo, audioOutputs = audioOutputs, artwork = currentArtwork,
+                    audioFileInfo = currentAudioInfo, audioOutputs = audioOutputs, outputLabel = currentOutputLabel, artwork = currentArtwork,
                     showBackupDialog = showBackupDialog, onShowBackupDialog = { showBackupDialog = it }, backupStatus = backupStatus,
                     showAudioOutputSettings = showAudioOutputSettings, onShowAudioOutputSettings = { showAudioOutputSettings = it },
                     onExportBackup = { backupExportPicker.launch("SHYNTAX-AUDIO-backup.zip") },
@@ -531,6 +535,7 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshAudioInfo(uri: Uri? = tracks.getOrNull(currentTrackIndex)?.uri) {
         val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        currentOutputLabel = pickActiveOutputLabel(audioManager)
         audioOutputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { device ->
             val type = audioDeviceTypeName(device.type)
             AudioOutputInfo(
@@ -575,7 +580,41 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Best-effort label of the device media audio is routed to, following the usual
+     *  routing priority: Bluetooth, wired/USB/HDMI outputs, then the built-in speaker.
+     *  A Bluetooth device is shown by its own product name (TWS, speaker, etc.). */
+    private fun pickActiveOutputLabel(audioManager: AudioManager): String {
+        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        fun firstOf(vararg types: Int) = devices.firstOrNull { it.type in types }
+        val bluetooth = firstOf(
+            android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            android.media.AudioDeviceInfo.TYPE_BLE_HEADSET,
+            android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER,
+            android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+        )
+        if (bluetooth != null) {
+            val name = bluetooth.productName?.toString()?.trim().orEmpty()
+            val model = android.os.Build.MODEL?.trim().orEmpty()
+            return if (name.isNotBlank() && !name.equals(model, ignoreCase = true)) "Bluetooth • $name"
+            else "Perangkat Bluetooth"
+        }
+        val routed = firstOf(
+            android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            android.media.AudioDeviceInfo.TYPE_USB_HEADSET,
+            android.media.AudioDeviceInfo.TYPE_USB_DEVICE,
+            android.media.AudioDeviceInfo.TYPE_HDMI,
+            android.media.AudioDeviceInfo.TYPE_HDMI_ARC,
+            android.media.AudioDeviceInfo.TYPE_LINE_ANALOG,
+            android.media.AudioDeviceInfo.TYPE_LINE_DIGITAL,
+            android.media.AudioDeviceInfo.TYPE_DOCK,
+            android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+        ) ?: return "Speaker internal"
+        return audioDeviceTypeName(routed.type)
+    }
+
     private fun loadLyricsForCurrentTrack() {
+        lyricsOnlineStatus = ""
         val track = tracks.getOrNull(currentTrackIndex) ?: run {
             lyricsText = ""
             return
@@ -598,6 +637,84 @@ class MainActivity : ComponentActivity() {
                 lyricsText = embedded
             }
         }
+    }
+
+    /** Fetches lyrics for the current track from LRCLIB (free, no API key) and stores
+     *  the result as the track's lyrics override, exactly like a manual import. */
+    private fun fetchOnlineLyrics() {
+        val track = tracks.getOrNull(currentTrackIndex) ?: return
+        val trackUri = track.uri
+        lyricsOnlineStatus = "Mencari lirik online…"
+        lifecycleScope.launch {
+            val found = withContext(Dispatchers.IO) { fetchLrclibLyrics(track) }
+            if (tracks.getOrNull(currentTrackIndex)?.uri != trackUri) return@launch
+            if (found != null) {
+                lyricsText = found
+                getSharedPreferences("shyntax_lyrics", MODE_PRIVATE).edit()
+                    .putString(trackUri.toString(), found).apply()
+                lyricsOnlineStatus = "Lirik online ditemukan dan disimpan."
+            } else {
+                lyricsOnlineStatus = "Lirik online tidak ditemukan untuk lagu ini."
+            }
+        }
+    }
+
+    private fun fetchLrclibLyrics(track: Track): String? {
+        fun clean(value: String): String = value
+            .replace(Regex("""\(.*?\)|\[.*?]"""), " ")
+            .replace(Regex("""\s+"""), " ").trim()
+        fun request(url: String): String? = runCatching {
+            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("User-Agent", "ShyntaxAudio/1.6 (https://github.com/PedjoeangSolo/shyntax-audio)")
+            }
+            if (connection.responseCode in 200..299)
+                connection.inputStream.bufferedReader().use { it.readText() } else null
+        }.getOrNull()
+        val title = clean(track.title)
+        val artist = clean(track.artist)
+        if (title.isBlank()) return null
+        val durationSec = (track.durationMs / 1000L).coerceAtLeast(0L)
+        // 1) Exact lookup by title + artist + album + duration.
+        val getUrl = "https://lrclib.net/api/get?artist_name=${URLEncoder.encode(artist, "UTF-8")}" +
+            "&track_name=${URLEncoder.encode(title, "UTF-8")}" +
+            "&album_name=${URLEncoder.encode(clean(track.album), "UTF-8")}" +
+            "&duration=$durationSec"
+        request(getUrl)?.let { body ->
+            runCatching {
+                val json = JSONObject(body)
+                val synced = json.optString("syncedLyrics")
+                if (synced.isNotBlank()) return synced
+                val plain = json.optString("plainLyrics")
+                if (plain.isNotBlank()) return plain
+            }
+        }
+        // 2) Fallback: search, preferring a synced result whose duration is closest.
+        val searchUrl = "https://lrclib.net/api/search?track_name=${URLEncoder.encode(title, "UTF-8")}" +
+            "&artist_name=${URLEncoder.encode(artist, "UTF-8")}"
+        val body = request(searchUrl) ?: return null
+        return runCatching {
+            val results = org.json.JSONArray(body)
+            var bestSynced: String? = null
+            var bestDiff = Long.MAX_VALUE
+            var firstPlain: String? = null
+            for (i in 0 until results.length()) {
+                val item = results.optJSONObject(i) ?: continue
+                val synced = item.optString("syncedLyrics")
+                val candidateMs = (item.optDouble("duration", 0.0) * 1000).toLong()
+                val diff = kotlin.math.abs(candidateMs - track.durationMs)
+                if (synced.isNotBlank() && diff < bestDiff) {
+                    bestDiff = diff
+                    bestSynced = synced
+                }
+                if (firstPlain == null) {
+                    val plain = item.optString("plainLyrics")
+                    if (plain.isNotBlank()) firstPlain = plain
+                }
+            }
+            bestSynced ?: firstPlain
+        }.getOrNull()
     }
 
     private fun persistLastPlayback(player: Player) {
@@ -1059,11 +1176,12 @@ private fun AudioHome(
     eqLevels: List<Float>, eqEnabled: Boolean, eqBandCount: Int, eqPreamp: Float, showEqualizer: Boolean,
     showLyricsControls: Boolean, onShowLyricsControls: (Boolean) -> Unit,
     lyricsText: String, playbackSpeed: Float, pitchSemitones: Int,
-    onImportLyrics: () -> Unit, onSpeedChange: (Float) -> Unit, onPitchChange: (Int) -> Unit, onResetPlayback: () -> Unit,
+    onImportLyrics: () -> Unit, lyricsOnlineStatus: String, onFetchOnlineLyrics: () -> Unit,
+    onSpeedChange: (Float) -> Unit, onPitchChange: (Int) -> Unit, onResetPlayback: () -> Unit,
     showDsp: Boolean, onShowDsp: (Boolean) -> Unit,
     showVisualizer: Boolean, onShowVisualizer: (Boolean) -> Unit,
     showHiResDialog: Boolean, onShowHiResDialog: (Boolean) -> Unit,
-    audioFileInfo: AudioFileInfo, audioOutputs: List<AudioOutputInfo>, artwork: Bitmap?, onRefreshAudioInfo: () -> Unit,
+    audioFileInfo: AudioFileInfo, audioOutputs: List<AudioOutputInfo>, outputLabel: String, artwork: Bitmap?, onRefreshAudioInfo: () -> Unit,
     showBackupDialog: Boolean, onShowBackupDialog: (Boolean) -> Unit, backupStatus: String,
     showAudioOutputSettings: Boolean, onShowAudioOutputSettings: (Boolean) -> Unit,
     onExportBackup: () -> Unit, onImportBackup: () -> Unit,
@@ -1141,6 +1259,7 @@ private fun AudioHome(
         LyricsDialog(
             lyrics = lyricsText, positionMs = position, artwork = artwork,
             onImportLyrics = onImportLyrics, onSeek = onSeek,
+            onlineStatus = lyricsOnlineStatus, onFetchOnline = onFetchOnlineLyrics,
             onDismiss = { onShowLyricsControls(false) }
         )
     }
@@ -1626,12 +1745,20 @@ private fun AudioHome(
                     Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("SUMBER", color = MutedText, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                            Text(audioFileInfo.sampleRate?.let { "${it / 1000.0} kHz" } ?: "—", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text(audioFileInfo.sampleRate?.let { "${it / 1000.0} kHz" } ?: "—", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                // Hi-Res: above 48 kHz, or a 24/32-bit PCM encoding.
+                                val hiRes = (audioFileInfo.sampleRate ?: 0) > 48000 || audioFileInfo.pcmEncoding in listOf(4, 21, 22)
+                                if (hiRes) {
+                                    Text("HI-RES", color = Ice, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                                        modifier = Modifier.background(PanelRaised, RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp))
+                                }
+                            }
                         }
                         Box(Modifier.width(1.dp).height(26.dp).background(PanelRaised))
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
                             Text("OUTPUT", color = MutedText, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                            Text(audioOutputs.firstOrNull()?.name ?: "Android AudioTrack", color = Ice, fontSize = 10.sp, maxLines = 1)
+                            Text(outputLabel, color = Ice, fontSize = 10.sp, maxLines = 1)
                         }
                         IconButton(onClick = { onShowHiResDialog(true); onRefreshAudioInfo() }, modifier = Modifier.size(34.dp)) {
                             Icon(Icons.Default.Info, "Detail audio", tint = Ice, modifier = Modifier.size(18.dp))
