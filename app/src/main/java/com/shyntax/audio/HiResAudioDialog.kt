@@ -29,7 +29,10 @@ data class AudioFileInfo(
 data class AudioOutputInfo(
     val name: String,
     val type: String,
-    val isUsb: Boolean
+    val isUsb: Boolean,
+    val supportedSampleRates: List<Int> = emptyList(),
+    val supportedChannelCounts: List<Int> = emptyList(),
+    val supportedEncodings: List<Int> = emptyList()
 )
 
 @Composable
@@ -62,7 +65,24 @@ fun HiResAudioDialog(
                     Text("Belum ada perangkat output yang terdeteksi.", color = Color.LightGray)
                 } else {
                     outputs.forEach { output ->
-                        InfoRow(output.name, if (output.isUsb) "USB • ${output.type}" else output.type)
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            InfoRow(output.name, if (output.isUsb) "USB • ${output.type}" else output.type)
+                            InfoRow(
+                                "Rate yang didukung",
+                                output.supportedSampleRates.takeIf { it.isNotEmpty() }
+                                    ?.joinToString { if (it >= 100000) "${it / 1000} kHz" else "${it / 1000.0} kHz" }
+                                    ?: "Tidak dilaporkan Android"
+                            )
+                            InfoRow(
+                                "Channel maksimum/opsi",
+                                output.supportedChannelCounts.takeIf { it.isNotEmpty() }?.joinToString() ?: "Tidak dilaporkan Android"
+                            )
+                            InfoRow(
+                                "Encoding",
+                                output.supportedEncodings.takeIf { it.isNotEmpty() }
+                                    ?.joinToString { encodingLabel(it) } ?: "Tidak dilaporkan Android"
+                            )
+                        }
                     }
                 }
                 HorizontalDivider()
@@ -81,7 +101,7 @@ fun HiResAudioDialog(
                     color = Color.LightGray
                 )
                 Text(
-                    "Peak dan clipping dihitung dari PCM 16-bit yang melewati mesin pemutar. Format PCM lain tidak masuk pengukuran ini. Sample rate keluaran aktual dan bit-perfect DAC tetap belum diverifikasi.",
+                    "Daftar rate, channel, dan encoding di atas adalah kapabilitas yang dilaporkan Android untuk perangkat yang terdeteksi, bukan bukti perangkat sedang memakai format tersebut. Peak dan clipping dihitung dari PCM 16-bit yang melewati mesin pemutar. Sample rate keluaran aktual dan bit-perfect DAC tetap belum diverifikasi.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.LightGray
                 )
@@ -124,4 +144,17 @@ fun audioDeviceTypeName(type: Int): String = when (type) {
     AudioDeviceInfo.TYPE_LINE_ANALOG -> "Line out analog"
     AudioDeviceInfo.TYPE_LINE_DIGITAL -> "Line out digital"
     else -> "Output audio lain ($type)"
+}
+
+
+private fun encodingLabel(encoding: Int): String = when (encoding) {
+    2 -> "PCM 16-bit"
+    4 -> "PCM Float"
+    21 -> "PCM 24-bit packed"
+    22 -> "PCM 32-bit"
+    5 -> "AC3"
+    6 -> "E-AC3"
+    7 -> "DTS"
+    8 -> "DTS-HD"
+    else -> "Encoding $encoding"
 }

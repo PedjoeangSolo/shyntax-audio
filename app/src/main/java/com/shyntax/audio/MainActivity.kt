@@ -542,7 +542,10 @@ class MainActivity : ComponentActivity() {
                 name = device.productName?.toString()?.takeIf { it.isNotBlank() } ?: type,
                 type = type,
                 isUsb = device.type == android.media.AudioDeviceInfo.TYPE_USB_DEVICE ||
-                    device.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
+                    device.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET,
+                supportedSampleRates = device.sampleRates?.toList().orEmpty(),
+                supportedChannelCounts = device.channelCounts?.toList().orEmpty(),
+                supportedEncodings = device.encodings?.toList().orEmpty()
             )
         }
         if (uri == null) {
