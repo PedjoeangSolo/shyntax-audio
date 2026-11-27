@@ -1748,7 +1748,7 @@ private fun AudioHome(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text(audioFileInfo.sampleRate?.let { "${it / 1000.0} kHz" } ?: "—", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 // Hi-Res: above 48 kHz, or a 24/32-bit PCM encoding.
-                                val hiRes = (audioFileInfo.sampleRate ?: 0) > 48000 || audioFileInfo.pcmEncoding in listOf(4, 21, 22)
+                                val hiRes = (audioFileInfo.sampleRate ?: 0) > 48000 || (audioFileInfo.pcmEncoding ?: -1) in listOf(4, 21, 22)
                                 if (hiRes) {
                                     Text("HI-RES", color = Ice, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
                                         modifier = Modifier.background(PanelRaised, RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp))
