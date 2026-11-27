@@ -41,8 +41,8 @@ fun EqualizerDialog(
     onParametricApply:(List<Float>,List<Float>,List<Float>)->Unit,
     initialTab:Int=0,
     speed:Float,pitchSemitones:Int,onSpeedChange:(Float)->Unit,onPitchChange:(Int)->Unit,onResetPlayback:()->Unit,
-    dspBass:Int,dspTreble:Int,dspWidth:Int,dspLoudness:Int,dspReverb:String,
-    onDspChange:(Int,Int,Int,Int,String)->Unit
+    dspBass:Int,dspTreble:Int,dspWidth:Int,dspLoudness:Int,reverb:ReverbSettings,
+    onDspChange:(Int,Int,Int,Int)->Unit,onReverbChange:(ReverbSettings)->Unit
 ){
     val context=LocalContext.current
     val prefs=remember{context.getSharedPreferences("shyntax_eq_custom_presets",Context.MODE_PRIVATE)}
@@ -174,7 +174,6 @@ fun EqualizerDialog(
                     var dspT by remember(dspTreble){mutableFloatStateOf(dspTreble.toFloat())}
                     var dspW by remember(dspWidth){mutableFloatStateOf(dspWidth.toFloat())}
                     var dspL by remember(dspLoudness){mutableFloatStateOf(dspLoudness.toFloat())}
-                    var dspR by remember(dspReverb){mutableStateOf(dspReverb)}
                     val dspSliderColors=SliderDefaults.colors(thumbColor=Color.White,activeTrackColor=eqBlue,inactiveTrackColor=Color(0xFF3A4652))
                     Surface(color=eqPanel,shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth()){
                         Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
@@ -186,14 +185,11 @@ fun EqualizerDialog(
                             Slider(value=dspW,onValueChange={dspW=it},valueRange=0f..100f,colors=dspSliderColors)
                             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("LOUDNESS ENHANCER",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text(dspL.toInt().toString()+" mB",color=eqBlue,fontSize=11.sp)}
                             Slider(value=dspL,onValueChange={dspL=it},valueRange=0f..1000f,steps=19,colors=dspSliderColors)
-                            Text("REVERB",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=4.dp))
-                            Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
-                                listOf("Off","Room","Hall","Plate").forEach{option->FilterChip(selected=dspR==option,onClick={dspR=option},label={Text(option,fontSize=10.sp)})}
-                            }
                             Text("Ketersediaan efek bergantung pada implementasi audio perangkat. Jika efek tidak didukung, aplikasi melewatinya dengan aman.",color=eqMuted,fontSize=9.sp)
-                            Button(onClick={onDspChange(dspB.toInt(),dspT.toInt(),dspW.toInt(),dspL.toInt(),dspR)},modifier=Modifier.fillMaxWidth()){Text("TERAPKAN DSP")}
+                            Button(onClick={onDspChange(dspB.toInt(),dspT.toInt(),dspW.toInt(),dspL.toInt())},modifier=Modifier.fillMaxWidth()){Text("TERAPKAN DSP")}
                         }
                     }
+                    ReverbPanel(reverb=reverb,onReverbChange=onReverbChange)
                 }
             }
         },
@@ -218,5 +214,79 @@ private fun VerticalEqFader(value:Float,label:String,onValueChange:(Float)->Unit
             drawCircle(Color.White,7.dp.toPx(),Offset(x,thumb));drawCircle(eqBlue,4.dp.toPx(),Offset(x,thumb))
         }
         Text(label,color=eqMuted,fontSize=8.sp,maxLines=1)
+    }
+}
+
+@Composable
+private fun ReverbKnob(label:String,value:Float,knobSize:androidx.compose.ui.unit.Dp,showCaption:Boolean=true,onValueChange:(Float)->Unit){
+    val current by rememberUpdatedState(value)
+    Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)){
+        Canvas(Modifier.size(knobSize).pointerInput(label){
+            detectDragGestures{_,drag->
+                onValueChange((current-drag.y/160f).coerceIn(0f,1f))
+            }
+        }){
+            val cx=size.width/2f;val cy=size.height/2f;val r=size.minDimension/2f-1.5.dp.toPx()
+            drawCircle(Color(0xFF1B1E24),radius=r,center=Offset(cx,cy))
+            drawCircle(Color(0xFF3A4652),radius=r,center=Offset(cx,cy),style=Stroke(width=1.5.dp.toPx()))
+            val theta=Math.toRadians((135f+current*270f).toDouble())
+            val inner=r-10.dp.toPx();val outer=r-3.dp.toPx()
+            drawLine(Color.White,
+                Offset(cx+inner*kotlin.math.cos(theta).toFloat(),cy+inner*kotlin.math.sin(theta).toFloat()),
+                Offset(cx+outer*kotlin.math.cos(theta).toFloat(),cy+outer*kotlin.math.sin(theta).toFloat()),
+                strokeWidth=3.5.dp.toPx(),cap=StrokeCap.Round)
+        }
+        if(showCaption){
+            Text(label,color=Color.White,fontSize=12.sp,fontWeight=FontWeight.Bold)
+            Text(String.format(java.util.Locale("id","ID"),"%.2f",value),color=eqMuted,fontSize=11.sp)
+        }
+    }
+}
+
+@Composable
+private fun ReverbPanel(reverb:ReverbSettings,onReverbChange:(ReverbSettings)->Unit){
+    var rv by remember(reverb){mutableStateOf(reverb)}
+    fun update(next:ReverbSettings){rv=next;onReverbChange(next)}
+    var presetMenu by remember{mutableStateOf(false)}
+    val presets=remember{listOf(
+        "Kamar Mandi" to ReverbSettings(enabled=true,damp=0.30f,filter=0.20f,decay=0.35f,preDelay=0.05f,preDelayMix=0.40f,size=0.25f,mix=0.50f),
+        "Ruangan Kecil" to ReverbSettings(enabled=true,damp=0.45f,filter=0.30f,decay=0.45f,preDelay=0.08f,preDelayMix=0.35f,size=0.35f,mix=0.45f),
+        "Aula" to ReverbSettings(enabled=true,damp=0.50f,filter=0.35f,decay=0.70f,preDelay=0.15f,preDelayMix=0.30f,size=0.70f,mix=0.50f),
+        "Gereja" to ReverbSettings(enabled=true,damp=0.55f,filter=0.40f,decay=0.90f,preDelay=0.25f,preDelayMix=0.35f,size=0.95f,mix=0.55f),
+        "Plate" to ReverbSettings(enabled=true,damp=0.70f,filter=0.50f,decay=0.60f,preDelay=0.02f,preDelayMix=0.20f,size=0.60f,mix=0.50f)
+    )}
+    Surface(color=eqPanel,shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth()){
+        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){
+                ReverbKnob("Damp",rv.damp,84.dp){update(rv.copy(damp=it))}
+                ReverbKnob("Filter",rv.filter,84.dp){update(rv.copy(filter=it))}
+                ReverbKnob("Pudar",rv.decay,84.dp){update(rv.copy(decay=it))}
+            }
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){
+                ReverbKnob("Pra-Delay",rv.preDelay,84.dp){update(rv.copy(preDelay=it))}
+                ReverbKnob("Mix Pra-Delay",rv.preDelayMix,84.dp){update(rv.copy(preDelayMix=it))}
+                ReverbKnob("Ukuran",rv.size,84.dp){update(rv.copy(size=it))}
+            }
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically){
+                Button(onClick={update(rv.copy(enabled=!rv.enabled))},
+                    colors=ButtonDefaults.buttonColors(containerColor=if(rv.enabled)eqBlue else Color(0xFF2A2F36),contentColor=if(rv.enabled)Color.Black else Color.White),
+                    modifier=Modifier.weight(1f)){Text("Reverb",fontSize=11.sp)}
+                Box(Modifier.weight(1f)){
+                    OutlinedButton(onClick={presetMenu=true},modifier=Modifier.fillMaxWidth()){Text("Preset",fontSize=11.sp,color=Color.White)}
+                    DropdownMenu(expanded=presetMenu,onDismissRequest={presetMenu=false}){
+                        presets.forEach{(name,preset)->DropdownMenuItem(text={Text(name)},onClick={presetMenu=false;update(preset)})}
+                    }
+                }
+                OutlinedButton(onClick={onReverbChange(rv)},modifier=Modifier.weight(1f)){Text("Simpan",fontSize=11.sp,color=Color.White)}
+            }
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+                Column{
+                    Text("Mix",color=Color.White,fontSize=13.sp,fontWeight=FontWeight.Bold)
+                    Text(String.format(java.util.Locale("id","ID"),"%.2f",rv.mix),color=eqMuted,fontSize=11.sp)
+                }
+                ReverbKnob("",rv.mix,132.dp,showCaption=false){update(rv.copy(mix=it))}
+            }
+            Text("Geser knob ke atas atau bawah untuk mengubah nilai. Reverb memakai efek ruangan bawaan Android; bila perangkat tidak mendukung parameter lengkap, aplikasi memakai preset ruangan terdekat.",color=eqMuted,fontSize=9.sp)
+        }
     }
 }

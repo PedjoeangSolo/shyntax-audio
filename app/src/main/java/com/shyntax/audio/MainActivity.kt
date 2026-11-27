@@ -156,7 +156,7 @@ class MainActivity : ComponentActivity() {
     private var dspTreble by mutableIntStateOf(0)
     private var dspWidth by mutableIntStateOf(0)
     private var dspLoudness by mutableIntStateOf(0)
-    private var dspReverb by mutableStateOf("Off")
+    private var reverbSettings by mutableStateOf(ReverbSettings())
     private var limiterEnabled by mutableStateOf(false)
     private val eqLevels = mutableStateListOf<Float>().apply { repeat(31) { add(0f) } }
     private var eqEnabled by mutableStateOf(false)
@@ -355,24 +355,34 @@ class MainActivity : ComponentActivity() {
                     onVisualizerMode = { visualizerMode = it; getSharedPreferences("shyntax_visualizer", MODE_PRIVATE).edit().putString("mode", it).apply() },
                     onVisualizerFps = { visualizerFps = it; getSharedPreferences("shyntax_visualizer", MODE_PRIVATE).edit().putInt("fps", it).apply(); visualizerEngine?.setFrameRate(it) },
                     onVisualizerQuality = { visualizerQuality = it; getSharedPreferences("shyntax_visualizer", MODE_PRIVATE).edit().putInt("quality", it).apply() },
-                    dspBass = dspBass, dspTreble = dspTreble, dspWidth = dspWidth, dspLoudness = dspLoudness, dspReverb = dspReverb,
+                    dspBass = dspBass, dspTreble = dspTreble, dspWidth = dspWidth, dspLoudness = dspLoudness, reverb = reverbSettings,
                     limiterEnabled = limiterEnabled,
                     onLimiterChange = { enabled -> limiterEnabled = enabled; getSharedPreferences("shyntax_dsp", MODE_PRIVATE).edit().putBoolean("limiter_enabled", enabled).apply() },
-                    onDspChange = { bass, treble, width, loudness, reverb ->
-                        dspBass = bass; dspTreble = treble; dspWidth = width; dspLoudness = loudness; dspReverb = reverb
-                        dspEngine?.apply(bass, width, loudness, reverb)
+                    onDspChange = { bass, treble, width, loudness ->
+                        dspBass = bass; dspTreble = treble; dspWidth = width; dspLoudness = loudness
+                        dspEngine?.apply(bass, width, loudness)
                         eqEngine?.applyTreble(treble)
                         if (treble != 0) { eqEnabled = true; eqEngine?.setEnabled(true); saveEqSettings() }
                         getSharedPreferences("shyntax_dsp", MODE_PRIVATE).edit()
                             .putInt("bass", bass).putInt("treble", treble).putInt("width", width)
-                            .putInt("loudness", loudness).putString("reverb", reverb).apply()
+                            .putInt("loudness", loudness).apply()
+                    },
+                    onReverbChange = { settings ->
+                        reverbSettings = settings
+                        dspEngine?.applyReverb(settings)
+                        getSharedPreferences("shyntax_dsp", MODE_PRIVATE).edit()
+                            .putBoolean("reverb_on", settings.enabled)
+                            .putFloat("reverb_damp", settings.damp).putFloat("reverb_filter", settings.filter)
+                            .putFloat("reverb_decay", settings.decay).putFloat("reverb_predelay", settings.preDelay)
+                            .putFloat("reverb_predelay_mix", settings.preDelayMix).putFloat("reverb_size", settings.size)
+                            .putFloat("reverb_mix", settings.mix).apply()
                     },
                     onEqToggle = { enabled -> eqEnabled = enabled; eqEngine?.setEnabled(enabled); saveEqSettings() },
                     onEqBandCount = { count -> eqBandCount = count; eqEngine?.applyGraphic(eqLevels.toList(), count); eqEngine?.setPreamp(eqPreamp); eqEngine?.applyTreble(dspTreble); saveEqSettings() },
                     onEqPreampChange = { value -> eqPreamp = value.coerceIn(-12f, 12f); eqEngine?.setPreamp(eqPreamp); saveEqSettings() },
                     onEqBassBoostChange = { value ->
                         dspBass = value.coerceIn(0, 100)
-                        dspEngine?.apply(dspBass, dspWidth, dspLoudness, dspReverb)
+                        dspEngine?.apply(dspBass, dspWidth, dspLoudness)
                         getSharedPreferences("shyntax_dsp", MODE_PRIVATE).edit().putInt("bass", dspBass).apply()
                     },
                     onEqCustomPresetApply = { values ->
@@ -914,8 +924,18 @@ class MainActivity : ComponentActivity() {
             dspTreble = dspPrefs.getInt("treble", 0).coerceIn(-12, 12)
             dspWidth = dspPrefs.getInt("width", 0).coerceIn(0, 100)
             dspLoudness = dspPrefs.getInt("loudness", 0).coerceIn(0, 1000)
-            dspReverb = dspPrefs.getString("reverb", "Off") ?: "Off"
-            dspEngine?.apply(dspBass, dspWidth, dspLoudness, dspReverb)
+            reverbSettings = ReverbSettings(
+                enabled = dspPrefs.getBoolean("reverb_on", false),
+                damp = dspPrefs.getFloat("reverb_damp", 0f).coerceIn(0f, 1f),
+                filter = dspPrefs.getFloat("reverb_filter", 0f).coerceIn(0f, 1f),
+                decay = dspPrefs.getFloat("reverb_decay", 0f).coerceIn(0f, 1f),
+                preDelay = dspPrefs.getFloat("reverb_predelay", 0f).coerceIn(0f, 1f),
+                preDelayMix = dspPrefs.getFloat("reverb_predelay_mix", 0f).coerceIn(0f, 1f),
+                size = dspPrefs.getFloat("reverb_size", 0f).coerceIn(0f, 1f),
+                mix = dspPrefs.getFloat("reverb_mix", 0f).coerceIn(0f, 1f)
+            )
+            dspEngine?.apply(dspBass, dspWidth, dspLoudness)
+            dspEngine?.applyReverb(reverbSettings)
             val prefs = getSharedPreferences("shyntax_eq", MODE_PRIVATE)
             eqEnabled = prefs.getBoolean("enabled", false)
             eqBandCount = 31
@@ -1189,9 +1209,10 @@ private fun AudioHome(
     visualizerFps: Int, visualizerQuality: Int, visualizerStatus: String,
     onStartVisualizer: () -> Unit, onStopVisualizer: () -> Unit,
     onVisualizerMode: (String) -> Unit, onVisualizerFps: (Int) -> Unit, onVisualizerQuality: (Int) -> Unit,
-    dspBass: Int, dspTreble: Int, dspWidth: Int, dspLoudness: Int, dspReverb: String,
+    dspBass: Int, dspTreble: Int, dspWidth: Int, dspLoudness: Int, reverb: ReverbSettings,
     limiterEnabled: Boolean, onLimiterChange: (Boolean) -> Unit,
-    onDspChange: (Int, Int, Int, Int, String) -> Unit,
+    onDspChange: (Int, Int, Int, Int) -> Unit,
+    onReverbChange: (ReverbSettings) -> Unit,
     onShowEqualizer: (Boolean) -> Unit, onEqToggle: (Boolean) -> Unit, onEqBandCount: (Int) -> Unit,
     onEqPreampChange: (Float) -> Unit, onEqBassBoostChange: (Int) -> Unit,
     onEqCustomPresetApply: (List<Float>) -> Unit,
@@ -1304,8 +1325,8 @@ private fun AudioHome(
             initialTab = eqInitialTab,
             speed = playbackSpeed, pitchSemitones = pitchSemitones,
             onSpeedChange = onSpeedChange, onPitchChange = onPitchChange, onResetPlayback = onResetPlayback,
-            dspBass = dspBass, dspTreble = dspTreble, dspWidth = dspWidth, dspLoudness = dspLoudness, dspReverb = dspReverb,
-            onDspChange = onDspChange
+            dspBass = dspBass, dspTreble = dspTreble, dspWidth = dspWidth, dspLoudness = dspLoudness, reverb = reverb,
+            onDspChange = onDspChange, onReverbChange = onReverbChange
         )
     }
     if (showSettings) {
