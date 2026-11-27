@@ -137,8 +137,8 @@ class MainActivity : ComponentActivity() {
     private var pitchSemitones by mutableIntStateOf(0)
     private var showVisualizer by mutableStateOf(false)
     private var visualizerEngine: AudioVisualizerEngine? = null
-    private var visualizerWave by mutableStateOf<List<Float>>(emptyList())
-    private var visualizerFft by mutableStateOf<List<Float>>(emptyList())
+    private var visualizerWave by mutableStateOf(FloatArray(0))
+    private var visualizerFft by mutableStateOf(FloatArray(0))
     private var visualizerStatus by mutableStateOf("Visualizer belum dimulai")
     private var visualizerMode by mutableStateOf("Waveform")
     private var visualizerFps by mutableIntStateOf(30)
@@ -918,7 +918,7 @@ private fun AudioHome(
     showBackupDialog: Boolean, onShowBackupDialog: (Boolean) -> Unit, backupStatus: String,
     showAudioOutputSettings: Boolean, onShowAudioOutputSettings: (Boolean) -> Unit,
     onExportBackup: () -> Unit, onImportBackup: () -> Unit,
-    visualizerMode: String, visualizerWave: List<Float>, visualizerFft: List<Float>,
+    visualizerMode: String, visualizerWave: FloatArray, visualizerFft: FloatArray,
     visualizerFps: Int, visualizerQuality: Int, visualizerStatus: String,
     onStartVisualizer: () -> Unit, onStopVisualizer: () -> Unit,
     onVisualizerMode: (String) -> Unit, onVisualizerFps: (Int) -> Unit, onVisualizerQuality: (Int) -> Unit,
