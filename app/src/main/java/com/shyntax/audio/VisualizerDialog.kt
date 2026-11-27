@@ -14,12 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -36,6 +35,7 @@ import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
+import kotlinx.coroutines.delay
 
 private val VisualIce = Color(0xFF62D9FF)
 private val VisualBg = Color(0xFF000000)
@@ -49,8 +49,8 @@ private fun particleHash(index: Int, salt: Int): Float {
 @Composable
 fun VisualizerDialog(
     mode: String,
-    waveform: List<Float>,
-    fft: List<Float>,
+    waveform: FloatArray,
+    fft: FloatArray,
     fps: Int,
     quality: Int,
     status: String,
@@ -125,70 +125,91 @@ fun VisualizerDialog(
 @Composable
 private fun VisualizerCanvas(
     mode: String,
-    waveform: List<Float>,
-    fft: List<Float>,
+    waveform: FloatArray,
+    fft: FloatArray,
     quality: Int,
     modifier: Modifier = Modifier
 ) {
     val fftState = rememberUpdatedState(fft)
-    val smoothed = remember { mutableStateListOf<Float>() }
-    val peaks = remember { mutableStateListOf<Float>() }
+    val waveformState = rememberUpdatedState(waveform)
+    val smoothed = remember(quality) { FloatArray(quality) }
+    val peaks = remember(quality) { FloatArray(quality) }
     var beatPulse by remember { mutableFloatStateOf(0f) }
     var energyAverage by remember { mutableFloatStateOf(0f) }
     var phase by remember { mutableFloatStateOf(0f) }
+    var frameVersion by remember { mutableIntStateOf(0) }
 
-    // Per-display-frame animation state: fast attack / slow decay smoothing per bin,
-    // falling peak caps, and a simple bass-energy beat detector driving [beatPulse].
-    LaunchedEffect(Unit) {
-        var lastNanos = 0L
-        while (true) {
-            withFrameNanos { frameNanos ->
-                val deltaMs = if (lastNanos == 0L) 16.7f
-                    else ((frameNanos - lastNanos) / 1_000_000f).coerceIn(1f, 100f)
-                lastNanos = frameNanos
-                val frames = deltaMs / 16.7f
-                phase += 0.004f * frames
-                while (smoothed.size < quality) { smoothed.add(0f); peaks.add(0f) }
-                val target = fftState.value
-                val bassBins = min(6, quality)
-                var bass = 0f
-                for (i in 0 until bassBins) bass += target.getOrElse(i) { 0f }.coerceIn(0f, 1f)
-                if (bassBins > 0) bass /= bassBins
-                val averageK = 1f - 0.96f.pow(frames)
-                energyAverage = if (energyAverage <= 0f) bass
-                    else energyAverage + (bass - energyAverage) * averageK
-                if (bass > 0.12f && bass > energyAverage * 1.28f) beatPulse = 1f
-                beatPulse *= 0.90f.pow(frames)
-                val attackK = 1f - 0.45f.pow(frames)
-                val decayK = 1f - 0.90f.pow(frames)
-                for (i in 0 until quality) {
-                    val t = target.getOrElse(i) { 0f }.coerceIn(0f, 1f)
-                    val current = smoothed[i]
-                    val next = if (t > current) current + (t - current) * attackK
-                        else current + (t - current) * decayK
-                    smoothed[i] = next
-                    peaks[i] = maxOf(next, peaks[i] - 0.0035f * frames)
-                }
+    // Cache deterministic particle parameters once; only their animated position changes.
+    val particleBase = remember {
+        Array(7) { FloatArray(90) }.also { data ->
+            for (i in 0 until 90) {
+                for (salt in 1..6) data[salt][i] = particleHash(i, salt)
+                data[0][i] = if (particleHash(i, 2) > 0.5f) 1f else -1f
             }
         }
     }
 
+    // Animation work and redraws follow the selected FPS instead of the display refresh rate.
+    LaunchedEffect(fps, quality) {
+        var lastFrameAt = 0L
+        while (true) {
+            val now = android.os.SystemClock.elapsedRealtime()
+            val deltaMs = if (lastFrameAt == 0L) 1000f / fps
+                else (now - lastFrameAt).toFloat().coerceIn(1f, 250f)
+            lastFrameAt = now
+            val frames = deltaMs / 16.7f
+            phase += 0.004f * frames
+
+            val target = fftState.value
+            val bassBins = min(6, quality)
+            var bass = 0f
+            for (i in 0 until bassBins) {
+                if (i < target.size) bass += target[i].coerceIn(0f, 1f)
+            }
+            if (bassBins > 0) bass /= bassBins
+            val averageK = 1f - 0.96f.pow(frames)
+            energyAverage = if (energyAverage <= 0f) bass
+                else energyAverage + (bass - energyAverage) * averageK
+            if (bass > 0.12f && bass > energyAverage * 1.28f) beatPulse = 1f
+            beatPulse *= 0.90f.pow(frames)
+            val attackK = 1f - 0.45f.pow(frames)
+            val decayK = 1f - 0.90f.pow(frames)
+            for (i in 0 until quality) {
+                val t = if (i < target.size) target[i].coerceIn(0f, 1f) else 0f
+                val current = smoothed[i]
+                val next = if (t > current) current + (t - current) * attackK
+                    else current + (t - current) * decayK
+                smoothed[i] = next
+                peaks[i] = maxOf(next, peaks[i] - 0.0035f * frames)
+            }
+            frameVersion++
+            delay((1000L / fps).coerceAtLeast(1L))
+        }
+    }
+
     Canvas(modifier.background(VisualBg, RoundedCornerShape(16.dp))) {
+        // Read once per scheduled frame to invalidate the drawing layer without per-bin Compose state.
+        frameVersion
         val w = size.width
         val h = size.height
-        val values: List<Float> = if (smoothed.size >= quality) smoothed.subList(0, quality)
-            else fft.take(quality).ifEmpty { List(quality) { 0f } }
+        val values = smoothed
         when (mode) {
             "Waveform", "Oscilloscope" -> {
-                val samples = waveform.take(quality * 4)
+                val samples = waveformState.value
+                val sampleCount = min(samples.size, quality * 4)
                 val mid = h / 2f
                 drawLine(Color(0xFF27465A), Offset(0f, mid), Offset(w, mid), 1f)
-                if (samples.size > 1) {
-                    val stepX = w / (samples.size - 1).toFloat()
-                    for (i in 1 until samples.size) {
-                        val a = Offset((i - 1) * stepX, mid - samples[i - 1] * h * 0.42f)
-                        val b = Offset(i * stepX, mid - samples[i] * h * 0.42f)
-                        drawLine(VisualIce, a, b, if (mode == "Oscilloscope") 2.5f else 1.8f, cap = StrokeCap.Round)
+                if (sampleCount > 1) {
+                    val stepX = w / (sampleCount - 1).toFloat()
+                    var previousX = 0f
+                    var previousY = mid - samples[0] * h * 0.42f
+                    for (i in 1 until sampleCount) {
+                        val x = i * stepX
+                        val y = mid - samples[i] * h * 0.42f
+                        drawLine(VisualIce, Offset(previousX, previousY), Offset(x, y),
+                            if (mode == "Oscilloscope") 2.5f else 1.8f, cap = StrokeCap.Round)
+                        previousX = x
+                        previousY = y
                     }
                 }
             }
@@ -198,12 +219,12 @@ private fun VisualizerCanvas(
                 val radius = min(w, h) * (0.22f + beatPulse * 0.025f)
                 drawCircle(VisualIce.copy(alpha = 0.16f + beatPulse * 0.30f), radius * 0.62f, Offset(cx, cy))
                 drawCircle(Color(0xFF25465B), radius, Offset(cx, cy), style = Stroke(2f))
-                values.forEachIndexed { i, value ->
-                    val angle = (i.toFloat() / values.size) * (2.0 * PI) - PI / 2.0
-                    val inner = radius
+                for (i in 0 until quality) {
+                    val angle = (i.toFloat() / quality) * (2.0 * PI) - PI / 2.0
+                    val value = values[i]
                     val outer = radius + value * min(w, h) * 0.24f
                     drawLine(VisualIce,
-                        Offset(cx + cos(angle).toFloat() * inner, cy + sin(angle).toFloat() * inner),
+                        Offset(cx + cos(angle).toFloat() * radius, cy + sin(angle).toFloat() * radius),
                         Offset(cx + cos(angle).toFloat() * outer, cy + sin(angle).toFloat() * outer),
                         strokeWidth = 2.4f, cap = StrokeCap.Round)
                 }
@@ -212,30 +233,30 @@ private fun VisualizerCanvas(
                 val cx = w / 2f
                 val cy = h / 2f
                 val maxRadius = min(w, h) * 0.5f
-                val particleCount = 90
-                for (i in 0 until particleCount) {
-                    val direction = if (particleHash(i, 2) > 0.5f) 1f else -1f
-                    val angle = particleHash(i, 1) * (2.0 * PI).toFloat() +
-                        direction * phase * (0.4f + particleHash(i, 3) * 0.9f)
-                    val binIndex = (particleHash(i, 4) * values.size).toInt()
-                        .coerceIn(0, maxOf(0, values.size - 1))
-                    val energy = values.getOrElse(binIndex) { 0f }
-                    val radius = maxRadius * (0.10f + particleHash(i, 5) * 0.55f + energy * 0.22f + beatPulse * 0.10f)
+                for (i in 0 until 90) {
+                    val direction = particleBase[0][i]
+                    val angle = particleBase[1][i] * (2.0 * PI).toFloat() +
+                        direction * phase * (0.4f + particleBase[3][i] * 0.9f)
+                    val binIndex = (particleBase[4][i] * quality).toInt().coerceIn(0, quality - 1)
+                    val energy = values[binIndex]
+                    val radius = maxRadius * (0.10f + particleBase[5][i] * 0.55f + energy * 0.22f + beatPulse * 0.10f)
                     val x = cx + cos(angle) * radius
                     val y = cy + sin(angle) * radius
-                    val particleSize = 1.5f + particleHash(i, 6) * 3f + energy * 5f + beatPulse * 2.5f
+                    val particleSize = 1.5f + particleBase[6][i] * 3f + energy * 5f + beatPulse * 2.5f
                     val alpha = (0.25f + energy * 0.55f + beatPulse * 0.20f).coerceIn(0f, 1f)
                     drawCircle(VisualIce.copy(alpha = alpha), particleSize, Offset(x, y))
                 }
             }
             else -> {
                 val gap = 3f
-                val barWidth = (w - gap * values.size) / values.size
-                values.forEachIndexed { i, value ->
+                val barWidth = (w - gap * quality) / quality
+                for (i in 0 until quality) {
+                    val value = values[i]
                     val barHeight = (value * h * 0.88f).coerceAtLeast(2f)
                     drawRoundRect(VisualIce, Offset(i * (barWidth + gap), h - barHeight),
-                        Size(barWidth.coerceAtLeast(1f), barHeight), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
-                    val peak = peaks.getOrElse(i) { value }
+                        Size(barWidth.coerceAtLeast(1f), barHeight),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+                    val peak = peaks[i]
                     if (peak > value + 0.02f) {
                         val peakHeight = (peak * h * 0.88f).coerceAtLeast(2f)
                         drawRect(VisualIce.copy(alpha = 0.85f),
