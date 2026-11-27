@@ -1138,15 +1138,21 @@ private fun AudioHome(
     else ""
 
     if (showLyricsControls) {
-        LyricsTempoPitchDialog(
-            lyrics = lyricsText, positionMs = position, speed = playbackSpeed, pitchSemitones = pitchSemitones,
-            onImportLyrics = onImportLyrics, onSpeedChange = onSpeedChange, onPitchChange = onPitchChange,
-            onReset = onResetPlayback, onDismiss = { onShowLyricsControls(false) }
+        LyricsDialog(
+            lyrics = lyricsText, positionMs = position, artwork = artwork,
+            onImportLyrics = onImportLyrics, onSeek = onSeek,
+            onDismiss = { onShowLyricsControls(false) }
         )
     }
-    if (showDsp) {
-        DspDialog(bass = dspBass, treble = dspTreble, width = dspWidth, loudness = dspLoudness, reverb = dspReverb,
-            onChange = onDspChange, onDismiss = { onShowDsp(false) })
+    // DSP controls now live as a tab inside the Equalizer dialog: opening "DSP"
+    // from anywhere lands on that tab.
+    var eqInitialTab by remember { mutableIntStateOf(0) }
+    LaunchedEffect(showDsp) {
+        if (showDsp) {
+            eqInitialTab = 3
+            onShowEqualizer(true)
+            onShowDsp(false)
+        }
     }
     if (showVisualizer) {
         VisualizerDialog(
@@ -1175,7 +1181,12 @@ private fun AudioHome(
             onBandCountChange = onEqBandCount, onBandChange = onEqChange,
             preamp = eqPreamp, bassBoost = dspBass, limiterEnabled = limiterEnabled, onLimiterChange = onLimiterChange,
             onPreampChange = onEqPreampChange, onBassBoostChange = onEqBassBoostChange,
-            onPreset = onEqPreset, onCustomPresetApply = onEqCustomPresetApply, onParametricApply = onParametricApply
+            onPreset = onEqPreset, onCustomPresetApply = onEqCustomPresetApply, onParametricApply = onParametricApply,
+            initialTab = eqInitialTab,
+            speed = playbackSpeed, pitchSemitones = pitchSemitones,
+            onSpeedChange = onSpeedChange, onPitchChange = onPitchChange, onResetPlayback = onResetPlayback,
+            dspBass = dspBass, dspTreble = dspTreble, dspWidth = dspWidth, dspLoudness = dspLoudness, dspReverb = dspReverb,
+            onDspChange = onDspChange
         )
     }
     if (showSettings) {
@@ -1184,7 +1195,7 @@ private fun AudioHome(
             onDismiss = { showSettings = false },
             onOpenLibrary = { showSettings = false; showLibrary = true },
             onSleepTimer = { showSettings = false; showSleepTimer = true },
-            onOpenEqualizer = { showSettings = false; onShowEqualizer(true) },
+            onOpenEqualizer = { showSettings = false; eqInitialTab = 0; onShowEqualizer(true) },
             onOpenDsp = { showSettings = false; onShowDsp(true) },
             onOpenVisualizer = { showSettings = false; onShowVisualizer(true) },
             onOpenAudioOutput = { showSettings = false; onShowAudioOutputSettings(true) },
@@ -1309,9 +1320,9 @@ private fun AudioHome(
                 }
             }
             IconButton(onClick = { onShowLyricsControls(true) }) {
-                Icon(Icons.Default.Lyrics, "Lirik, tempo dan pitch", tint = Ice)
+                Icon(Icons.Default.Lyrics, "Lirik", tint = Ice)
             }
-            IconButton(onClick = { onShowEqualizer(true) }) {
+            IconButton(onClick = { eqInitialTab = 0; onShowEqualizer(true) }) {
                 Icon(Icons.Default.Tune, "Equalizer", tint = Ice)
             }
             IconButton(onClick = { onShowVisualizer(true) }) {
@@ -1685,7 +1696,7 @@ private fun ShyntaxSettingsDialog(
                     SettingsRow(Icons.Default.Add, "Tambah Lagu", "Impor file audio secara manual", onImport)
                 }
                 SettingsSection("LIRIK") {
-                    SettingsRow(Icons.Default.Lyrics, "Lirik, Tempo & Pitch", "Lirik tersinkron, kecepatan, dan nada", onOpenLyrics)
+                    SettingsRow(Icons.Default.Lyrics, "Lirik", "Tampilan lirik tersinkron layar penuh", onOpenLyrics)
                 }
                 SettingsSection("CADANGAN") {
                     SettingsRow(Icons.Default.Settings, "Backup & Pemulihan", "Ekspor dan impor pengaturan (ZIP)", onOpenBackup)

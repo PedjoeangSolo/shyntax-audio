@@ -38,7 +38,11 @@ fun EqualizerDialog(
     onBandCountChange:(Int)->Unit,onBandChange:(Int,Float)->Unit,
     onPreampChange:(Float)->Unit,onBassBoostChange:(Int)->Unit,
     onPreset:(String)->Unit,onCustomPresetApply:(List<Float>)->Unit,
-    onParametricApply:(List<Float>,List<Float>,List<Float>)->Unit
+    onParametricApply:(List<Float>,List<Float>,List<Float>)->Unit,
+    initialTab:Int=0,
+    speed:Float,pitchSemitones:Int,onSpeedChange:(Float)->Unit,onPitchChange:(Int)->Unit,onResetPlayback:()->Unit,
+    dspBass:Int,dspTreble:Int,dspWidth:Int,dspLoudness:Int,dspReverb:String,
+    onDspChange:(Int,Int,Int,Int,String)->Unit
 ){
     val context=LocalContext.current
     val prefs=remember{context.getSharedPreferences("shyntax_eq_custom_presets",Context.MODE_PRIVATE)}
@@ -48,7 +52,7 @@ fun EqualizerDialog(
     }.toMap())}
     var customName by remember{mutableStateOf("")}
     var menu by remember{mutableStateOf(false)}
-    var tab by remember{mutableIntStateOf(0)}
+    var tab by remember{mutableIntStateOf(initialTab)}
     var selected by remember{mutableStateOf("Custom")}
     var freq by remember{mutableStateOf(listOf(60f,250f,1000f,4000f,12000f))}
     var gain by remember{mutableStateOf(List(5){0f})}
@@ -89,6 +93,8 @@ fun EqualizerDialog(
                 TabRow(selectedTabIndex=tab,containerColor=Color(0xFF000000),contentColor=eqBlue){
                     Tab(selected=tab==0,onClick={tab=0},text={Text("Graphic EQ",fontSize=11.sp)})
                     Tab(selected=tab==1,onClick={tab=1},text={Text("Parametric",fontSize=11.sp)})
+                    Tab(selected=tab==2,onClick={tab=2},text={Text("Tempo/Pitch",fontSize=11.sp)})
+                    Tab(selected=tab==3,onClick={tab=3},text={Text("DSP",fontSize=11.sp)})
                 }
                 if(tab==0){
                     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
@@ -137,7 +143,7 @@ fun EqualizerDialog(
                             custom=custom+(name to levels.take(31));selected=name;customName=""
                         },contentPadding=PaddingValues(horizontal=9.dp)){Text("Simpan",fontSize=10.sp)}
                     }
-                }else{
+                }else if(tab==1){
                     Text("5-band parametric • frequency, gain and Q",color=eqMuted,fontSize=11.sp)
                     Column(Modifier.weight(1f,fill=false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(7.dp)){
                         freq.forEachIndexed{i,f->Surface(color=eqPanel,shape=RoundedCornerShape(13.dp),modifier=Modifier.fillMaxWidth()){
@@ -150,6 +156,44 @@ fun EqualizerDialog(
                         }}
                     }
                     Button(onClick={onParametricApply(freq,gain,q);onEnabledChange(true)},modifier=Modifier.fillMaxWidth()){Text("APPLY PARAMETRIC EQ")}
+                }else if(tab==2){
+                    Surface(color=eqPanel,shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth()){
+                        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("TEMPO / KECEPATAN",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text(String.format("%.2f×",speed),color=eqBlue,fontSize=11.sp)}
+                            Slider(value=speed,onValueChange=onSpeedChange,valueRange=0.5f..2f)
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("50%",color=eqMuted,fontSize=9.sp);Text("100%",color=eqMuted,fontSize=9.sp);Text("200%",color=eqMuted,fontSize=9.sp)}
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("PITCH",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text((if(pitchSemitones>0)"+" else "")+pitchSemitones+" semitone",color=eqBlue,fontSize=11.sp)}
+                            Slider(value=pitchSemitones.toFloat(),onValueChange={onPitchChange(it.toInt())},valueRange=-12f..12f,steps=23)
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("-12",color=eqMuted,fontSize=9.sp);Text("0",color=eqMuted,fontSize=9.sp);Text("+12",color=eqMuted,fontSize=9.sp)}
+                            TextButton(onClick=onResetPlayback,contentPadding=PaddingValues(0.dp)){Text("RESET TEMPO & PITCH",color=eqBlue,fontSize=9.sp)}
+                            Text("Tempo dan pitch diproses oleh Media3. Kualitas time-stretch bergantung pada codec dan perangkat.",color=eqMuted,fontSize=9.sp)
+                        }
+                    }
+                }else{
+                    var dspB by remember(dspBass){mutableFloatStateOf(dspBass.toFloat())}
+                    var dspT by remember(dspTreble){mutableFloatStateOf(dspTreble.toFloat())}
+                    var dspW by remember(dspWidth){mutableFloatStateOf(dspWidth.toFloat())}
+                    var dspL by remember(dspLoudness){mutableFloatStateOf(dspLoudness.toFloat())}
+                    var dspR by remember(dspReverb){mutableStateOf(dspReverb)}
+                    val dspSliderColors=SliderDefaults.colors(thumbColor=Color.White,activeTrackColor=eqBlue,inactiveTrackColor=Color(0xFF3A4652))
+                    Surface(color=eqPanel,shape=RoundedCornerShape(15.dp),modifier=Modifier.fillMaxWidth()){
+                        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("BASS BOOST",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text(dspB.toInt().toString()+"%",color=eqBlue,fontSize=11.sp)}
+                            Slider(value=dspB,onValueChange={dspB=it},valueRange=0f..100f,colors=dspSliderColors)
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("TREBLE",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text(dspT.toInt().toString()+" dB",color=eqBlue,fontSize=11.sp)}
+                            Slider(value=dspT,onValueChange={dspT=it},valueRange=-12f..12f,colors=dspSliderColors)
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("STEREO WIDTH / VIRTUALIZER",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text(dspW.toInt().toString()+"%",color=eqBlue,fontSize=11.sp)}
+                            Slider(value=dspW,onValueChange={dspW=it},valueRange=0f..100f,colors=dspSliderColors)
+                            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("LOUDNESS ENHANCER",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold);Text(dspL.toInt().toString()+" mB",color=eqBlue,fontSize=11.sp)}
+                            Slider(value=dspL,onValueChange={dspL=it},valueRange=0f..1000f,steps=19,colors=dspSliderColors)
+                            Text("REVERB",color=Color.White,fontSize=10.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=4.dp))
+                            Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
+                                listOf("Off","Room","Hall","Plate").forEach{option->FilterChip(selected=dspR==option,onClick={dspR=option},label={Text(option,fontSize=10.sp)})}
+                            }
+                            Text("Ketersediaan efek bergantung pada implementasi audio perangkat. Jika efek tidak didukung, aplikasi melewatinya dengan aman.",color=eqMuted,fontSize=9.sp)
+                            Button(onClick={onDspChange(dspB.toInt(),dspT.toInt(),dspW.toInt(),dspL.toInt(),dspR)},modifier=Modifier.fillMaxWidth()){Text("TERAPKAN DSP")}
+                        }
+                    }
                 }
             }
         },
