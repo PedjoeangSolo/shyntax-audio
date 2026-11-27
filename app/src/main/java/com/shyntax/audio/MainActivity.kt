@@ -1323,7 +1323,7 @@ private fun AudioHome(
             val total = (ms.coerceAtLeast(0L) / 1000L).toInt()
             return "%02d:%02d".format(total / 60, total % 60)
         }
-        val waveform = visualizerWave.takeIf { it.isNotEmpty() } ?: List(40) { i -> 0.16f + ((i * 17 + 9) % 23) / 30f }
+        val waveform = visualizerWave.takeIf { it.isNotEmpty() } ?: FloatArray(40) { i -> 0.16f + ((i * 17 + 9) % 23) / 30f }
         Box(Modifier.fillMaxSize().background(Background)) {
             if (dynamicBackground && artwork != null) {
                 Image(artwork.asImageBitmap(), null, Modifier.fillMaxSize().blur(42.dp), contentScale = ContentScale.Crop, alpha = 0.38f)
