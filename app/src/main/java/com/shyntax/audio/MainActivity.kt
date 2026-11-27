@@ -248,43 +248,7 @@ class MainActivity : ComponentActivity() {
         future.addListener({
             controller = runCatching { future.get() }.getOrNull()
             applyPlaybackParameters()
-            controller?.addListener(object : androidx.media3.common.Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    playing = isPlaying
-                    if (!isPlaying) controller?.let { persistLastPlayback(it) }
-                    if (eqEngine == null) {
-                        val id = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
-                        if (id > 0) setupEqualizer(id)
-                    }
-                }
-                override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                    currentTitle = mediaMetadata.title?.toString() ?: "SHYNTAX AUDIO"
-                }
-                override fun onPlaybackStateChanged(playbackState: Int) {
-                    duration = controller?.duration?.takeIf { it > 0 } ?: 0L
-                }
-                override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-                    shuffleEnabled = shuffleModeEnabled
-                }
-                override fun onRepeatModeChanged(newRepeatMode: Int) {
-                    repeatMode = newRepeatMode
-                }
-                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    val queueIndex = controller?.currentMediaItemIndex ?: 0
-                    currentTrackIndex = playbackQueue.getOrNull(queueIndex)
-                        ?.let { queueTrack -> tracks.indexOfFirst { it.uri == queueTrack.uri } }
-                        ?.takeIf { it >= 0 } ?: queueIndex
-                    abRepeatStart = null
-                    abRepeatEnd = null
-                    tracks.getOrNull(currentTrackIndex)?.let { recordPlayedTrack(it.uri) }
-                    AudioAnalysisState.reset()
-                    loadLyricsForCurrentTrack()
-                    tracks.getOrNull(currentTrackIndex)?.let { track ->
-                        refreshAudioInfo(track.uri)
-                        loadArtwork(track.uri, track.album, track.artist)
-                    }
-                }
-            })
+            controller?.let { registerPlaybackListener(it) }
             val sessionId = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
             if (sessionId > 0) setupEqualizer(sessionId)
             // Keep an existing MediaSession queue intact. Restore the last track only
@@ -343,7 +307,7 @@ class MainActivity : ComponentActivity() {
                             saveLibrary()
                         }
                     },
-                    onPlayPause = { controller?.let { if (it.isPlaying) it.pause() else it.play() } },
+                    onPlayPause = { togglePlayback() },
                     onNext = { controller?.seekToNextMediaItem() },
                     onPrevious = { controller?.seekToPreviousMediaItem() },
                     onSeek = { controller?.seekTo(it) },
@@ -618,6 +582,82 @@ class MainActivity : ComponentActivity() {
             .putLong("last_position", player.currentPosition.coerceAtLeast(0L))
             .putBoolean("was_playing", player.playWhenReady && player.playbackState != Player.STATE_ENDED)
             .apply()
+    }
+
+    private var controllerConnecting = false
+
+    private fun registerPlaybackListener(player: MediaController) {
+        player.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playing = isPlaying
+                if (!isPlaying) persistLastPlayback(player)
+                if (eqEngine == null) {
+                    val id = getSharedPreferences("shyntax_audio", MODE_PRIVATE).getInt("audio_session_id", 0)
+                    if (id > 0) setupEqualizer(id)
+                }
+            }
+            override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+                currentTitle = mediaMetadata.title?.toString() ?: "SHYNTAX AUDIO"
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                duration = player.duration.takeIf { it > 0 } ?: 0L
+            }
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                shuffleEnabled = shuffleModeEnabled
+            }
+            override fun onRepeatModeChanged(newRepeatMode: Int) {
+                repeatMode = newRepeatMode
+            }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val queueIndex = player.currentMediaItemIndex.coerceAtLeast(0)
+                currentTrackIndex = playbackQueue.getOrNull(queueIndex)
+                    ?.let { queueTrack -> tracks.indexOfFirst { it.uri == queueTrack.uri } }
+                    ?.takeIf { it >= 0 } ?: queueIndex
+                abRepeatStart = null
+                abRepeatEnd = null
+                tracks.getOrNull(currentTrackIndex)?.let { recordPlayedTrack(it.uri) }
+                AudioAnalysisState.reset()
+                loadLyricsForCurrentTrack()
+                tracks.getOrNull(currentTrackIndex)?.let { track ->
+                    refreshAudioInfo(track.uri)
+                    loadArtwork(track.uri, track.album, track.artist)
+                }
+            }
+        })
+    }
+
+    private fun togglePlayback() {
+        val current = controller
+        if (current != null) {
+            if (current.mediaItemCount == 0) {
+                val savedUri = getSharedPreferences("shyntax_playback_state", MODE_PRIVATE).getString("last_uri", null)
+                if (savedUri != null) restoreLastPlayback()
+                else if (tracks.isNotEmpty()) playTrack(0)
+                return
+            }
+            if (current.isPlaying) current.pause() else current.play()
+            return
+        }
+        if (controllerConnecting) return
+        controllerConnecting = true
+        val token = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        future.addListener({
+            val connected = runCatching { future.get() }.getOrNull()
+            controllerConnecting = false
+            if (connected == null) return@addListener
+            controller = connected
+            registerPlaybackListener(connected)
+            applyPlaybackParameters()
+            if (connected.mediaItemCount > 0) connected.play()
+            else {
+                val savedUri = getSharedPreferences("shyntax_playback_state", MODE_PRIVATE).getString("last_uri", null)
+                if (savedUri != null) {
+                    restoreLastPlayback()
+                    connected.play()
+                } else if (tracks.isNotEmpty()) playTrack(0)
+            }
+        }, MoreExecutors.directExecutor())
     }
 
     private fun restoreLastPlayback() {
