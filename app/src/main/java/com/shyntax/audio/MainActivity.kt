@@ -452,11 +452,22 @@ class MainActivity : ComponentActivity() {
 
     private fun scanMediaLibrary(treeUri: Uri, isNewFolder: Boolean = false) {
         scanStatus = "Memindai folder musik yang dipilih…"
+        val existingTracks = tracks.toList()
         lifecycleScope.launch {
-            val discovered = withContext(Dispatchers.IO) {
-                val result = mutableListOf<Track>()
-                val root = DocumentFile.fromTreeUri(this@MainActivity, treeUri) ?: return@withContext result
+            val prefs = getSharedPreferences("shyntax_music_folder", MODE_PRIVATE)
+            val oldScanned = prefs.getStringSet("scanned_track_uris", emptySet()).orEmpty().toSet()
+            val oldIndexText = prefs.getString("scan_metadata_index", null)
+            val scanResult = withContext(Dispatchers.IO) {
+                val root = DocumentFile.fromTreeUri(this@MainActivity, treeUri)
+                    ?: return@withContext null
                 val supported = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "wma", "aif", "aiff", "aifc", "alac")
+                val reusable = existingTracks.associateBy { it.uri.toString() }
+                val oldIndex = runCatching { oldIndexText?.let(::JSONObject) ?: JSONObject() }.getOrDefault(JSONObject())
+                val newIndex = JSONObject()
+                val result = mutableListOf<Track>()
+                var reusedCount = 0
+                var readCount = 0
+
                 fun visit(directory: DocumentFile, relative: String, depth: Int) {
                     if (depth > 20) return
                     directory.listFiles().forEach { child ->
@@ -464,30 +475,61 @@ class MainActivity : ComponentActivity() {
                         if (child.isDirectory) {
                             visit(child, if (relative.isBlank()) name else "$relative/$name", depth + 1)
                         } else if (child.isFile && name.substringAfterLast('.', "").lowercase() in supported) {
-                            val track = runCatching { readTrack(child.uri) }.getOrNull() ?: return@forEach
+                            val uri = child.uri
+                            val key = uri.toString()
+                            val size = child.length()
+                            val modified = child.lastModified()
+                            val previous = oldIndex.optJSONObject(key)
+                            val cachedTrack = reusable[key]
+                            val metadataAvailable = size > 0L && modified > 0L
+                            val unchanged = metadataAvailable && previous != null && cachedTrack != null &&
+                                previous.optLong("size", -1L) == size &&
+                                previous.optLong("modified", -1L) == modified
+                            val track = if (unchanged) {
+                                reusedCount++
+                                cachedTrack!!
+                            } else {
+                                readCount++
+                                runCatching { readTrack(uri) }.getOrNull()
+                            } ?: return@forEach
+                            if (metadataAvailable) {
+                                newIndex.put(key, JSONObject().put("size", size).put("modified", modified))
+                            }
                             val folder = relative.ifBlank { root.name ?: "Musik" }
                             result.add(track.copy(folderPath = folder, folderName = folder.substringAfterLast('/')))
                         }
                     }
                 }
+
                 visit(root, "", 0)
-                result.sortedBy { it.title.lowercase() }
+                Triple(result.sortedBy { it.title.lowercase() }, newIndex.toString(), reusedCount to readCount)
             }
-            val prefs = getSharedPreferences("shyntax_music_folder", MODE_PRIVATE)
-            val oldScanned = prefs.getStringSet("scanned_track_uris", emptySet()).orEmpty()
+
+            if (scanResult == null) {
+                scanStatus = "Folder musik tidak dapat dibuka. Periksa izin folder lalu coba lagi."
+                return@launch
+            }
+            val discovered = scanResult.first
             val discoveredUris = discovered.map { it.uri.toString() }.toSet()
-            val favorites = tracks.associate { it.uri.toString() to it.isFavorite }
-            val retained = tracks.filter { existing ->
+            val favorites = existingTracks.associate { it.uri.toString() to it.isFavorite }
+            val retained = existingTracks.filter { existing ->
                 val key = existing.uri.toString()
                 key !in oldScanned && !(isNewFolder && oldScanned.isEmpty() && key.startsWith("content://media/external/audio/media/"))
             }
             tracks.clear()
             tracks.addAll((retained + discovered).distinctBy { it.uri.toString() }
                 .map { it.copy(isFavorite = favorites[it.uri.toString()] ?: it.isFavorite) })
-            prefs.edit().putStringSet("scanned_track_uris", discoveredUris).apply()
+            prefs.edit()
+                .putStringSet("scanned_track_uris", discoveredUris)
+                .putString("scan_metadata_index", scanResult.second)
+                .apply()
             saveLibrary()
-            scanStatus = if (discovered.isEmpty()) "Folder dipindai: tidak ada file audio yang didukung."
-                else "Folder dipindai: ${discovered.size} lagu ditemukan."
+            val (reused, reread) = scanResult.third
+            scanStatus = if (discovered.isEmpty()) {
+                "Folder dipindai: tidak ada file audio yang didukung."
+            } else {
+                "Pemindaian selesai: ${discovered.size} lagu · ${reused} digunakan dari cache · ${reread} dibaca ulang."
+            }
             if (tracks.isNotEmpty() && controller?.mediaItemCount == 0) playTrack(0)
         }
     }
