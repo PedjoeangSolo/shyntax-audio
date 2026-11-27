@@ -90,7 +90,7 @@ fun VisualizerDialog(
                     TextButton(onClick = onDismiss) { Text("Tutup") }
                 }
                 VisualizerCanvas(
-                    mode, waveform, fft, quality,
+                    mode, waveform, fft, fps, quality,
                     if (fullscreen) Modifier.fillMaxWidth().weight(1f)
                     else Modifier.fillMaxWidth().height(210.dp)
                 )
@@ -127,6 +127,7 @@ private fun VisualizerCanvas(
     mode: String,
     waveform: FloatArray,
     fft: FloatArray,
+    fps: Int,
     quality: Int,
     modifier: Modifier = Modifier
 ) {
